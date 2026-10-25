@@ -19,7 +19,9 @@ public record StageSpec(
         int retries,
         boolean allowFailure,
         String image,
-        boolean network) {
+        boolean network,
+        List<String> teardown,
+        String envFile) {
 
     public String id() {
         return pipeline + "/" + name;

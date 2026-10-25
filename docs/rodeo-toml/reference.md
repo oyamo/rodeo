@@ -48,6 +48,8 @@ Valid only inside a stage table. An unknown option is an error. See [Validation]
 | `retries` | integer, 0 to 5 | `0` | Extra attempts after a failure. See [Retries](execution.md#retries-retries). |
 | `optional` | boolean | `false` | A failure does not fail the run. See [Optional stages](execution.md#optional-stages-optional). |
 | `on_fail` | string or array of strings | none | Commands run after the final failed attempt. See [Failure handling](execution.md#failure-handling-on_fail). |
+| `teardown` | string or array of strings | none | Commands that stop the previous run, run before each attempt. Failures are ignored. See [Teardown](execution.md#teardown-teardown). |
+| `env_file` | string | none | Repository file of `KEY=VALUE` lines loaded into the stage. See [Environment file](execution.md#environment-file-env_file). |
 | `image` | string | the pipeline or top-level `image` | Container image the stage runs in. Overrides the defaults. See [Images](execution.md#images). |
 | `network` | boolean | `false` | Allows the container network. Needs an image. See [Network access](execution.md#network-access). |
 | `host` | boolean | `false` | Runs the stage on the server, even when the pipeline or top level sets an image. Needs `allow-host-execution = true` under `[rodeo.exec]`. Cannot be combined with `image`. See [Running on the server](execution.md#running-on-the-server). |

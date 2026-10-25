@@ -207,6 +207,16 @@ app/build dir must be a relative path inside the repository
 
 **Fix:** write a path relative to the repository root, such as `services/api`.
 
+### env_file must be a relative path inside the repository
+
+```text
+app/deploy env_file must be a relative path inside the repository
+```
+
+`env_file` is absolute, or it leaves the repository through `..`. Environment files must come from the repository.
+
+**Fix:** write a path relative to the repository root, such as `deploy/production.env`. Secrets belong in `[rodeo.secrets]`, not in an env file.
+
 ### env value must be a string
 
 ```text

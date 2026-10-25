@@ -96,7 +96,9 @@ class DockerIsolationTest {
                 0,
                 false,
                 IMAGE,
-                network);
+                network,
+                List.of(),
+                null);
     }
 
     private static int run(String... command) throws IOException, InterruptedException {

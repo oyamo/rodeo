@@ -4,6 +4,7 @@ import dev.rodeo.config.ExecProperties;
 import dev.rodeo.config.SecretsProperties;
 import dev.rodeo.model.PushEvent;
 import java.io.IOException;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Duration;
 import java.time.Instant;
@@ -60,6 +61,12 @@ public class StageExecutor {
                     log.warn("{} RETRY {} of {} in {}", tag, attempt, stage.retries(), Elapsed.format(RETRY_DELAY));
                     Thread.sleep(RETRY_DELAY.toMillis());
                 }
+                if (!stage.teardown().isEmpty()) {
+                    log.info("{} teardown before attempt {}", tag, attempt + 1);
+                    if (runAll(stage.teardown(), launcher, tag, stage.timeout()) != null) {
+                        log.warn("{} teardown did not complete cleanly; continuing", tag);
+                    }
+                }
                 failure = runAll(stage.run(), launcher, tag, stage.timeout());
                 if (failure == null) {
                     log.info("{} SUCCEEDED in {}", tag, Elapsed.format(elapsed(start)));
@@ -78,6 +85,9 @@ public class StageExecutor {
             return Status.FAILED;
         } catch (IllegalStateException e) {
             log.error("{} FAILED: {}", tag, e.getMessage());
+            return Status.FAILED;
+        } catch (IOException e) {
+            log.error("{} FAILED: could not read env_file: {}", tag, e.getMessage());
             return Status.FAILED;
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
@@ -116,11 +126,14 @@ public class StageExecutor {
             RunContext context,
             boolean container,
             ExecProperties execProperties,
-            SecretsProperties secrets) {
+            SecretsProperties secrets) throws IOException {
         Map<String, String> environment = new HashMap<>();
         if (!container) {
             environment.put("PATH", execProperties.path());
             environment.put("HOME", execProperties.home());
+        }
+        if (stage.envFile() != null) {
+            environment.putAll(loadEnvFile(context.workspace().resolve(stage.envFile())));
         }
         environment.putAll(stage.env());
         for (String name : stage.secrets()) {
@@ -134,6 +147,22 @@ public class StageExecutor {
         environment.put("RODEO_BRANCH", event.branch());
         environment.put("RODEO_COMMIT", event.after());
         return environment;
+    }
+
+    static Map<String, String> loadEnvFile(Path file) throws IOException {
+        if (!Files.isRegularFile(file)) {
+            throw new IllegalStateException("env_file " + file.getFileName() + " does not exist in the repository");
+        }
+        Map<String, String> values = new HashMap<>();
+        for (String line : Files.readAllLines(file)) {
+            String entry = line.strip();
+            int equals = entry.indexOf('=');
+            if (entry.isEmpty() || entry.startsWith("#") || equals <= 0) {
+                continue;
+            }
+            values.put(entry.substring(0, equals).strip(), entry.substring(equals + 1).strip());
+        }
+        return values;
     }
 
     @FunctionalInterface

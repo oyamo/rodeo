@@ -35,7 +35,7 @@ public class PipelineParser {
     private static final Set<String> PIPELINE_OPTIONS = Set.of("on", "env", "image");
     private static final Set<String> STAGE_OPTIONS = Set.of(
             "run", "label", "needs", "when", "dir", "env", "secrets", "timeout", "retries",
-            "optional", "on_fail", "image", "network", "host");
+            "optional", "on_fail", "image", "network", "host", "teardown", "env_file");
 
     private final Set<String> allowedSecrets;
     private final boolean allowHostExecution;
@@ -99,7 +99,9 @@ public class PipelineParser {
                 0,
                 false,
                 image,
-                false);
+                false,
+                List.of(),
+                null);
         return new PipelineFile(List.of(new PipelineSpec(LEGACY_PIPELINE, branches, List.of(stage))));
     }
 
@@ -152,7 +154,9 @@ public class PipelineParser {
                     0,
                     false,
                     pipelineImage,
-                    false);
+                    false,
+                    List.of(),
+                    null);
         }
         if (!(value instanceof TomlTable options)) {
             throw new PipelineException(where + " must be a command, a list of commands, or a table");
@@ -186,7 +190,11 @@ public class PipelineParser {
 
         String dir = optional(options, "dir", null);
         if (dir != null) {
-            validateDir(where, dir);
+            validateRelativePath(where, "dir", dir);
+        }
+        String envFile = optional(options, "env_file", null);
+        if (envFile != null) {
+            validateRelativePath(where, "env_file", envFile);
         }
 
         long retries = optionalLong(options, "retries", 0);
@@ -217,7 +225,9 @@ public class PipelineParser {
                 (int) retries,
                 optionalBoolean(options, "optional", false),
                 image,
-                network);
+                network,
+                options.contains("teardown") ? commands(options.get("teardown"), where) : List.of(),
+                envFile);
     }
 
     private void requireExecutionTarget(String image, boolean network, String where) {
@@ -301,10 +311,10 @@ public class PipelineParser {
         }
     }
 
-    private static void validateDir(String where, String dir) {
-        Path path = Path.of(dir);
+    private static void validateRelativePath(String where, String key, String value) {
+        Path path = Path.of(value);
         if (path.isAbsolute() || path.normalize().startsWith("..")) {
-            throw new PipelineException(where + " dir must be a relative path inside the repository");
+            throw new PipelineException(where + " " + key + " must be a relative path inside the repository");
         }
     }
 

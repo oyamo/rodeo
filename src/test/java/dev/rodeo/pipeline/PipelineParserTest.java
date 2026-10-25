@@ -5,9 +5,9 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import dev.rodeo.config.ExecProperties;
 import dev.rodeo.config.SecretsProperties;
-import java.util.Map;
 import java.time.Duration;
 import java.util.List;
+import java.util.Map;
 import org.junit.jupiter.api.Test;
 
 class PipelineParserTest {
@@ -225,5 +225,33 @@ class PipelineParserTest {
                 """))
                 .isInstanceOf(PipelineException.class)
                 .hasMessageContaining("unknown top-level key 'color'");
+    }
+
+    @Test
+    void parsesTeardownAndEnvFile() {
+        PipelineFile file = parser.parse("""
+                on = ["main"]
+
+                [app.deploy]
+                run = "./deploy.sh"
+                teardown = ["docker compose down", "rm -f state"]
+                env_file = "deploy/production.env"
+                """);
+
+        StageSpec deploy = file.stagesFor("main").getFirst();
+        assertThat(deploy.teardown()).containsExactly("docker compose down", "rm -f state");
+        assertThat(deploy.envFile()).isEqualTo("deploy/production.env");
+    }
+
+    @Test
+    void rejectsEnvFileOutsideTheRepository() {
+        assertThatThrownBy(() -> parser.parse("""
+                on = ["main"]
+
+                [app]
+                deploy = { run = "./deploy.sh", env_file = "/etc/rodeo/secrets.env" }
+                """))
+                .isInstanceOf(PipelineException.class)
+                .hasMessageContaining("inside the repository");
     }
 }

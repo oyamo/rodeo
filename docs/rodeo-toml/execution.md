@@ -155,6 +155,45 @@ Use `on_fail` for cleanup or for undoing partial work. It does not change the st
 
 Stages that do not depend on each other run in parallel. The server limits how many run at once with `max-parallel-stages` under `[rodeo.exec]`, which defaults to 4. Runs are processed one at a time, so the limit applies to the stages of the current run. See [Configuration](../configuration.md#rodeoexec).
 
+## Teardown: `teardown`
+
+`teardown` lists commands that stop whatever the previous run started, such as a container or a service. rodeo runs them before the stage's commands, on every attempt.
+
+```toml
+[auth-service.deploy]
+teardown = "docker compose down"
+run = "docker compose up -d auth-service"
+host = true
+```
+
+Teardown is optional, and it is expected to fail when nothing is running. A failed teardown command is logged and the stage continues. Only the stage's own `run` commands decide whether the stage succeeds.
+
+## Environment file: `env_file`
+
+`env_file` loads variables from a file in the repository. The file holds one `KEY=VALUE` pair per line. Blank lines and lines starting with `#` are ignored.
+
+```text
+# deploy/production.env
+REGION=eu-west
+REPLICAS=3
+```
+
+```toml
+[frontend.deploy]
+run = "./scripts/deploy-frontend.sh"
+env_file = "deploy/production.env"
+network = true
+```
+
+The stage's variables come from these sources, in increasing order of precedence:
+
+1. `env_file`
+2. The `env` table in the pipeline and the stage
+3. The secrets the stage requests
+4. The variables rodeo sets (`RODEO_*`)
+
+Keep secrets out of the env file. Request them with `secrets`, which are defined on the server. The path must stay inside the repository. A missing file fails the stage.
+
 ## Summary of execution options
 
 | Option | Default | Scope |
@@ -164,3 +203,5 @@ Stages that do not depend on each other run in parallel. The server limits how m
 | `retries` | `0` | The whole stage, up to 5 extra attempts |
 | `optional` | `false` | The stage's effect on the run outcome |
 | `on_fail` | none | Runs once after the last failed attempt |
+| `teardown` | none | Runs before each attempt. Failures are ignored. |
+| `env_file` | none | Variables loaded from a repository file, lowest precedence |

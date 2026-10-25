@@ -47,6 +47,7 @@ nav:
   - Configuration: configuration.md
   - Running rodeo: running.md
   - Logs: logs.md
+  - Commit status: commit-status.md
   - Examples: examples.md
   - Guides:
       - Deploy on push: deployment.md

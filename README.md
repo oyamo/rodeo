@@ -75,7 +75,7 @@ There is no container or namespace isolation yet.
 
 - Public repositories only; the clone sends no credentials.
 - Single worker. Long-running commands delay every run queued behind them.
-- No run history or status reporting. Output goes to stdout.
+- No run history. Output goes to stdout. GitHub commit statuses are reported when `GITHUB_STATUS_TOKEN` is set.
 - Requires `git` and `sh` on the host or in the container image.
 
 ## Build and test

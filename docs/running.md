@@ -140,7 +140,7 @@ curl -i -X POST https://rodeo.example.com/webhooks/github \
 
 | Request | Status | Meaning |
 |---|---|---|
-| Push with a valid signature or token | `202` | Accepted. Hooks and any `rodeo.toml` commands are triggered. |
+| Push with a valid signature or token | `202` | Received. Hooks and any `rodeo.toml` run start in the background. The `202` does not report whether the run succeeded. See [Logs](logs.md). |
 | Other event, such as an issue or a tag push | `202` | Accepted and ignored. |
 | GitHub `ping` with a valid signature | `200` | rodeo is reachable. |
 | Missing or wrong signature or token | `401` | Rejected. Nothing ran. |

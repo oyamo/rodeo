@@ -12,15 +12,20 @@ import dev.rodeo.pipeline.StageReport;
 import dev.rodeo.pipeline.StageSpec;
 import dev.rodeo.pipeline.Status;
 import dev.rodeo.service.PushEventHandler;
+import dev.rodeo.status.CommitState;
+import dev.rodeo.status.StatusReporter;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Qualifier;
@@ -32,22 +37,26 @@ public class PushCommandsHandler implements PushEventHandler {
 
     private static final Logger log = LoggerFactory.getLogger(PushCommandsHandler.class);
     private static final String CONFIG_FILE = "rodeo.toml";
+    private static final String STATUS_PREFIX = "rodeo/";
     private static final Duration CLONE_TIMEOUT = Duration.ofMinutes(5);
 
     private final ExecutorService executor;
     private final ExecutorService stagePool;
     private final PipelineParser parser;
     private final StageExecutor stageExecutor;
+    private final StatusReporter statusReporter;
 
     public PushCommandsHandler(
             @Qualifier("pushExecutor") ExecutorService executor,
             @Qualifier("stagePool") ExecutorService stagePool,
             PipelineParser parser,
-            StageExecutor stageExecutor) {
+            StageExecutor stageExecutor,
+            StatusReporter statusReporter) {
         this.executor = executor;
         this.stagePool = stagePool;
         this.parser = parser;
         this.stageExecutor = stageExecutor;
+        this.statusReporter = statusReporter;
     }
 
     @Override
@@ -69,6 +78,8 @@ public class PushCommandsHandler implements PushEventHandler {
             }
         } catch (Exception e) {
             log.error("run {} aborted for {} on {}: {}", runId, event.repository(), event.branch(), e.getMessage());
+            statusReporter.report(event, STATUS_PREFIX + "run", CommitState.FAILURE,
+                    "Run " + runId + " aborted: " + e.getMessage());
         }
     }
 
@@ -92,11 +103,39 @@ public class PushCommandsHandler implements PushEventHandler {
             return;
         }
 
+        Map<String, List<StageSpec>> pipelines = stages.stream()
+                .collect(Collectors.groupingBy(StageSpec::pipeline, LinkedHashMap::new, Collectors.toList()));
+        pipelines.keySet().forEach(name -> statusReporter.report(
+                event, STATUS_PREFIX + name, CommitState.PENDING, "Run " + runId + " started"));
+
         log.info("run {} starting {} stage(s)", runId, stages.size());
         RunContext context = new RunContext(runId, workspace, event);
         RunResult result = new RunEngine(stagePool).execute(stages, stage -> stageExecutor.execute(stage, context));
 
         logSummary(runId, result, Duration.between(started, Instant.now()));
+        reportPipelines(event, stages, result);
+    }
+
+    private void reportPipelines(PushEvent event, List<StageSpec> stages, RunResult result) {
+        Map<String, StageSpec> specs = stages.stream()
+                .collect(Collectors.toMap(StageSpec::id, stage -> stage));
+        Map<String, List<StageSpec>> pipelines = stages.stream()
+                .collect(Collectors.groupingBy(StageSpec::pipeline, LinkedHashMap::new, Collectors.toList()));
+
+        for (String pipeline : pipelines.keySet()) {
+            StageReport failure = result.stages().stream()
+                    .filter(report -> report.status() == Status.FAILED)
+                    .filter(report -> !specs.get(report.id()).allowFailure())
+                    .filter(report -> specs.get(report.id()).pipeline().equals(pipeline))
+                    .findFirst()
+                    .orElse(null);
+            String context = STATUS_PREFIX + pipeline;
+            if (failure == null) {
+                statusReporter.report(event, context, CommitState.SUCCESS, "All stages succeeded");
+            } else {
+                statusReporter.report(event, context, CommitState.FAILURE, "Failed: " + failure.label());
+            }
+        }
     }
 
     private static void logSummary(String runId, RunResult result, Duration total) {

@@ -12,6 +12,7 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
@@ -82,12 +83,51 @@ class PushCommandsHandlerTest {
         assertThat(Files.readString(frontend)).isEqualTo("frontend\n");
     }
 
-    private void runPush(Path remote, String branch) throws InterruptedException {
+    @Test
+    void reportsPendingThenSuccessForEachPipeline() throws Exception {
+        Path remote = createRemote("""
+                on = ["main"]
+
+                [app]
+                build = "echo ok"
+                """);
+
+        List<String> statuses = runPush(remote, "main");
+
+        assertThat(statuses).hasSize(2);
+        assertThat(statuses.get(0)).startsWith("rodeo/app PENDING Run ").endsWith(" started");
+        assertThat(statuses.get(1)).isEqualTo("rodeo/app SUCCESS All stages succeeded");
+    }
+
+    @Test
+    void reportsFailureNamingTheFailedStage() throws Exception {
+        Path remote = createRemote("""
+                on = ["main"]
+
+                [app]
+                build = "echo ok"
+                deploy = { run = "false", label = "Deploy API" }
+                """);
+
+        List<String> statuses = runPush(remote, "main");
+
+        assertThat(statuses).hasSize(2);
+        assertThat(statuses.get(0)).startsWith("rodeo/app PENDING Run ").endsWith(" started");
+        assertThat(statuses.get(1)).isEqualTo("rodeo/app FAILURE Failed: Deploy API");
+    }
+
+    private List<String> runPush(Path remote, String branch) throws InterruptedException {
         ExecutorService executor = Executors.newSingleThreadExecutor();
         ExecutorService stagePool = Executors.newFixedThreadPool(4);
         PipelineParser parser = new PipelineParser(new ExecProperties(4, List.of("DEPLOY_TOKEN")));
+        List<String> statuses = new CopyOnWriteArrayList<>();
         PushCommandsHandler handler = new PushCommandsHandler(
-                executor, stagePool, parser, new StageExecutor(new CommandRunner()));
+                executor,
+                stagePool,
+                parser,
+                new StageExecutor(new CommandRunner()),
+                (event, context, state, description) ->
+                        statuses.add(context + " " + state + " " + description));
 
         handler.handle(new PushEvent(
                 Provider.GITHUB,
@@ -100,6 +140,7 @@ class PushCommandsHandlerTest {
         executor.shutdown();
         executor.awaitTermination(60, TimeUnit.SECONDS);
         stagePool.shutdown();
+        return statuses;
     }
 
     private Path createRemote(String rodeoToml) throws IOException, InterruptedException {

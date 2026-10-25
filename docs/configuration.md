@@ -19,6 +19,17 @@ rodeo does not start unless both are set. Use a different value for each provide
 |---|---|---|
 | `PORT` | `8080` | Port the HTTP server listens on |
 
+### Commit statuses
+
+| Variable | Required | Default | Description |
+|---|---|---|---|
+| `GITHUB_STATUS_TOKEN` | no | empty | Token that lets rodeo post commit statuses to GitHub. Without it, no status is posted. |
+| `GITHUB_API_URL` | no | `https://api.github.com` | GitHub API base URL, for GitHub Enterprise Server |
+
+The token is read by rodeo itself. It is never given to stage commands, so it does not need to be listed in `RODEO_ALLOWED_SECRETS`.
+
+Create a fine-grained personal access token with the **Commit statuses** permission set to **Read and write**, and access to the repositories you want to report on. See [Commit status reporting](commit-status.md).
+
 ### Pipeline execution
 
 | Variable | Default | Description |

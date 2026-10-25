@@ -82,10 +82,28 @@ The commands run in order. The first command that fails ends the stage, and the 
 
 ```toml
 [site]
-deploy = { run = "./deploy.sh", label = "Publish to CDN", needs = ["build"], timeout = "15m" }
+deploy = {
+  run = "helm upgrade --install app ./chart",
+  label = "Publish to CDN",
+  needs = ["build"],
+  timeout = "15m",
+}
 ```
 
 Use a table when a stage needs options. The full list of options is in the [reference](reference.md#stage-options). The required key is `run`, and its value can be a string or a list of strings.
+
+Write the options one per line inside the braces. A trailing comma after the last option is allowed:
+
+```toml
+[site]
+deploy = {
+  run = "helm upgrade --install app ./chart",
+  needs = ["build"],
+  timeout = "15m",
+}
+```
+
+Line breaks inside inline tables are TOML 1.1. Use a TOML 1.1 aware editor or validator when you write these files.
 
 ## Stage order
 
@@ -114,7 +132,10 @@ A label is a display name used in the logs and the run summary. It does not chan
 
 ```toml
 [site]
-deploy = { run = "./deploy.sh", label = "Publish to CDN" }
+deploy = {
+  run = "helm upgrade --install app ./chart",
+  label = "Publish to CDN",
+}
 ```
 
 Without a label, the stage name is shown. A label can be 1 to 60 characters.

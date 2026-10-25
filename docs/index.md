@@ -8,11 +8,18 @@ on = ["main"]
 [frontend]
 build  = "npm ci && npm run build"
 test   = { run = "npm test", needs = ["build"] }
-deploy = { run = "./scripts/deploy-frontend.sh", needs = ["test", "backend.deploy"] }
+deploy = {
+  run = "rsync -az dist/ deploy@web.example.com:/srv/web/",
+  needs = ["test", "backend.deploy"],
+}
 
 [backend]
 build  = "mvn -B package"
-deploy = { run = "./scripts/deploy-backend.sh", needs = ["build"], secrets = ["DEPLOY_TOKEN"] }
+deploy = {
+  run = "helm upgrade --install backend ./chart",
+  needs = ["build"],
+  secrets = ["DEPLOY_TOKEN"],
+}
 ```
 
 ## Features

@@ -11,7 +11,10 @@ on = ["main"]
 
 [pipeline-name]
 stage-name = "a command"
-other-stage = { run = "a command", needs = ["stage-name"] }
+other-stage = {
+  run = "a command",
+  needs = ["stage-name"],
+}
 ```
 
 | Element | What it is | Page |

@@ -21,11 +21,17 @@ Within a pipeline, a name refers to a stage in that pipeline. Across pipelines, 
 [backend]
 build  = "mvn -B package"
 test   = "mvn -B verify"
-deploy = { run = "./deploy-api.sh", needs = ["build", "test"] }
+deploy = {
+  run = "helm upgrade --install api ./chart",
+  needs = ["build", "test"],
+}
 
 [frontend]
 build  = "npm run build"
-deploy = { run = "./deploy-web.sh", needs = ["build", "backend.deploy"] }
+deploy = {
+  run = "helm upgrade --install web ./chart",
+  needs = ["build", "backend.deploy"],
+}
 ```
 
 `backend/build` and `frontend/build` start together. `backend/test` waits for `backend/build`. `backend/deploy` waits for both backend stages. `frontend/deploy` waits for `frontend/build` and for `backend/deploy`, so the web app is released only after the API is live.
@@ -67,7 +73,10 @@ The table shows what happens to a stage depending on the outcome of its dependen
 ```toml
 [app]
 test   = "mvn -B test"
-deploy = { run = "./deploy.sh", needs = ["test"] }
+deploy = {
+  run = "helm upgrade --install app ./chart",
+  needs = ["test"],
+}
 ```
 
 The deploy runs only when the tests pass.
@@ -76,8 +85,12 @@ The deploy runs only when the tests pass.
 
 ```toml
 [app]
-deploy   = { run = "./deploy.sh", needs = [] }
-rollback = { run = "./rollback.sh", needs = ["deploy"], when = "failure" }
+deploy   = { run = "helm upgrade --install app ./chart", needs = [] }
+rollback = {
+  run = "helm rollback app",
+  needs = ["deploy"],
+  when = "failure",
+}
 ```
 
 The rollback runs only when the deploy fails.
@@ -87,7 +100,11 @@ The rollback runs only when the deploy fails.
 ```toml
 [app]
 build   = "make"
-cleanup = { run = "make clean", needs = ["build"], when = "always" }
+cleanup = {
+  run = "make clean",
+  needs = ["build"],
+  when = "always",
+}
 ```
 
 The cleanup runs after the build, whether it succeeded or failed.
@@ -96,7 +113,12 @@ The cleanup runs after the build, whether it succeeded or failed.
 
 ```toml
 [alerts]
-notify = { run = "./notify.sh", needs = ["eu.deploy", "us.deploy"], when = "failure", secrets = ["SLACK_TOKEN"] }
+notify = {
+  run = "curl -fsS -X POST https://hooks.example.com/notify",
+  needs = ["eu.deploy", "us.deploy"],
+  when = "failure",
+  secrets = ["SLACK_TOKEN"],
+}
 ```
 
 `notify` runs if either deploy fails. A deploy that was skipped does not count as a failure.

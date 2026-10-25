@@ -13,9 +13,9 @@ Push-triggered pipeline runner for Git repositories. On a push to a configured b
 on = ["main"]
 
 [frontend]
-build = "./scripts/build-frontend.sh"
+build = "npm ci && npm run build"
 deploy = {
-  run = "./scripts/deploy-frontend.sh",
+  run = "rsync -az dist/ deploy@web.example.com:/srv/web/",
   needs = ["build"],
   network = true,
 }
@@ -30,7 +30,7 @@ build = [
   "cp target/*.jar dist/",
 ]
 deploy = {
-  run = "./scripts/deploy-payment.sh",
+  run = "helm upgrade --install payment ./chart",
   needs = ["build"],
   network = true,
 }

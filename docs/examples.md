@@ -19,7 +19,7 @@ REGISTRY_PASSWORD = "..."
 SLACK_TOKEN = "..."
 ```
 
-The scripts referenced in the examples are assumed to exist in the repository, under `scripts/`. Each script must find its tools in the stage's image. Stages that need the server itself are marked `host = true`, and they require `allow-host-execution = true` under `[rodeo.exec]`. Stages that talk to a network set `network = true`.
+The commands in the examples call tools such as `npm`, `mvn`, `helm` and `docker`. The stage's image must provide the tools it calls. Stages that need the server itself are marked `host = true`, and they require `allow-host-execution = true` under `[rodeo.exec]`. Stages that talk to a network set `network = true`.
 
 ## 1. Run tests on every push
 
@@ -48,14 +48,22 @@ image = "maven:3.9-eclipse-temurin-21"
 [app]
 build  = { run = "mvn -B -q package -DskipTests", label = "Build jar" }
 test   = { run = "mvn -B test", label = "Unit tests", needs = [] }
-deploy = { run = "./scripts/deploy.sh", label = "Deploy to production", host = true, needs = ["build", "test"], timeout = "5m", retries = 1, on_fail = "./scripts/rollback.sh" }
+deploy = {
+  run = "helm upgrade --install app ./chart",
+  label = "Deploy to production",
+  host = true,
+  needs = ["build", "test"],
+  timeout = "5m",
+  retries = 1,
+  on_fail = "helm rollback app",
+}
 ```
 
 **What happens:**
 
 1. `build` and `test` start together. `needs = []` on `test` removes the default dependency on `build`.
 2. `deploy` waits for both. A failed build or test stops the deploy.
-3. If the deploy fails, it is retried once. If the retry fails too, `rollback.sh` runs.
+3. If the deploy fails, it is retried once. If the retry fails too, the rollback command runs.
 
 **Log lines to expect:**
 
@@ -75,15 +83,28 @@ Two pipelines in one file, each triggered by a different branch. A push to `deve
 [staging]
 on = ["develop"]
 image = "alpine:3.20"
-deploy = { run = "./scripts/deploy.sh", label = "Deploy staging", network = true, env = { ENVIRONMENT = "staging" } }
-smoke  = { run = "./scripts/smoke-test.sh https://staging.example.com", label = "Smoke test", network = true, retries = 2 }
+deploy = {
+  run = "helm upgrade --install app ./chart",
+  label = "Deploy staging",
+  network = true,
+  env = { ENVIRONMENT = "staging" },
+}
+smoke  = { run = "curl -fsS https://staging.example.com/health", label = "Smoke test", network = true, retries = 2 }
 
 [production]
 on = ["main"]
 image = "alpine:3.20"
-build  = { run = "./scripts/build.sh", label = "Build release", network = true }
-deploy = { run = "./scripts/deploy.sh", label = "Deploy production", needs = ["build"], network = true, env = { ENVIRONMENT = "production" }, secrets = ["DEPLOY_TOKEN"], on_fail = "./scripts/rollback.sh" }
-smoke  = { run = "./scripts/smoke-test.sh https://example.com", label = "Smoke test", network = true, retries = 3 }
+build  = { run = "mvn -B -q package", label = "Build release", network = true }
+deploy = {
+  run = "helm upgrade --install app ./chart",
+  label = "Deploy production",
+  needs = ["build"],
+  network = true,
+  env = { ENVIRONMENT = "production" },
+  secrets = ["DEPLOY_TOKEN"],
+  on_fail = "helm rollback app",
+}
+smoke  = { run = "curl -fsS https://example.com/health", label = "Smoke test", network = true, retries = 3 }
 ```
 
 **What happens:**
@@ -109,14 +130,36 @@ on = ["main"]
 image = "maven:3.9-eclipse-temurin-21"
 build  = { run = "mvn -B -q package", dir = "services/api", label = "Build API" }
 test   = { run = "mvn -B verify", dir = "services/api", label = "Test API" }
-deploy = { run = "./scripts/deploy.sh api", label = "Deploy API", network = true, needs = ["build", "test"], secrets = ["DEPLOY_TOKEN"], retries = 2, timeout = "5m", on_fail = "./scripts/rollback.sh api" }
+deploy = {
+  run = "helm upgrade --install api ./chart",
+  label = "Deploy API",
+  network = true,
+  needs = ["build", "test"],
+  secrets = ["DEPLOY_TOKEN"],
+  retries = 2,
+  timeout = "5m",
+  on_fail = "helm rollback api",
+}
 
 [frontend]
 image = "node:22"
 build  = { run = ["npm ci", "npm run build"], dir = "apps/web", label = "Build web app", network = true }
 test   = { run = "npm test", dir = "apps/web", label = "Test web app" }
-deploy = { run = "./scripts/deploy.sh web", dir = "apps/web", label = "Deploy web app", network = true, needs = ["test", "backend.deploy"] }
-notify = { run = "./scripts/notify.sh frontend-failed", label = "Alert the team", needs = ["deploy"], network = true, secrets = ["SLACK_TOKEN"], when = "failure" }
+deploy = {
+  run = "helm upgrade --install web ./chart",
+  dir = "apps/web",
+  label = "Deploy web app",
+  network = true,
+  needs = ["test", "backend.deploy"],
+}
+notify = {
+  run = "curl -fsS -X POST https://hooks.example.com/frontend-failed",
+  label = "Alert the team",
+  needs = ["deploy"],
+  network = true,
+  secrets = ["SLACK_TOKEN"],
+  when = "failure",
+}
 ```
 
 **What happens:**
@@ -149,23 +192,54 @@ A service is built once, scanned, and rolled out to two regions in sequence. The
 on = ["main"]
 
 [build]
-image   = { run = "./scripts/build-image.sh", label = "Build and push image", host = true, secrets = ["REGISTRY_PASSWORD"], timeout = "20m" }
-scan    = { run = "trivy image --exit-code 1 registry.example.com/app:$RODEO_COMMIT", label = "Scan image", host = true, needs = ["image"] }
-cleanup = { run = "docker image prune -f", label = "Remove local images", host = true, needs = ["image"], when = "always" }
+image   = { run = "docker build -t registry.example.com/app:latest .", label = "Build and push image", host = true, secrets = ["REGISTRY_PASSWORD"], timeout = "20m" }
+scan    = { run = "trivy image --exit-code 1 registry.example.com/app:latest", label = "Scan image", host = true, needs = ["image"] }
+cleanup = {
+  run = "docker image prune -f",
+  label = "Remove local images",
+  host = true,
+  needs = ["image"],
+  when = "always",
+}
 
 [eu]
 image = "alpine:3.20"
-deploy = { run = "./scripts/rollout.sh eu-west", label = "Roll out to EU", network = true, needs = ["build.scan"], secrets = ["DEPLOY_TOKEN"], retries = 2, timeout = "10m", on_fail = "./scripts/rollback.sh eu-west" }
-smoke  = { run = "./scripts/smoke-test.sh https://eu.example.com", label = "Smoke test EU", network = true, retries = 3 }
+deploy = {
+  run = "helm upgrade --install app ./chart --kube-context eu-west",
+  label = "Roll out to EU",
+  network = true,
+  needs = ["build.scan"],
+  secrets = ["DEPLOY_TOKEN"],
+  retries = 2,
+  timeout = "10m",
+  on_fail = "helm rollback app --kube-context eu-west",
+}
+smoke  = { run = "curl -fsS https://eu.example.com/health", label = "Smoke test EU", network = true, retries = 3 }
 
 [us]
 image = "alpine:3.20"
-deploy = { run = "./scripts/rollout.sh us-east", label = "Roll out to US", network = true, needs = ["build.scan", "eu.smoke"], secrets = ["DEPLOY_TOKEN"], retries = 2, timeout = "10m", on_fail = "./scripts/rollback.sh us-east" }
-smoke  = { run = "./scripts/smoke-test.sh https://us.example.com", label = "Smoke test US", network = true, retries = 3 }
+deploy = {
+  run = "helm upgrade --install app ./chart --kube-context us-east",
+  label = "Roll out to US",
+  network = true,
+  needs = ["build.scan", "eu.smoke"],
+  secrets = ["DEPLOY_TOKEN"],
+  retries = 2,
+  timeout = "10m",
+  on_fail = "helm rollback app --kube-context us-east",
+}
+smoke  = { run = "curl -fsS https://us.example.com/health", label = "Smoke test US", network = true, retries = 3 }
 
 [alerts]
 image = "alpine:3.20"
-notify = { run = "./scripts/notify.sh release-failed", label = "Alert the release channel", network = true, needs = ["eu.deploy", "eu.smoke", "us.deploy", "us.smoke"], secrets = ["SLACK_TOKEN"], when = "failure" }
+notify = {
+  run = "curl -fsS -X POST https://hooks.example.com/release-failed",
+  label = "Alert the release channel",
+  network = true,
+  needs = ["eu.deploy", "eu.smoke", "us.deploy", "us.smoke"],
+  secrets = ["SLACK_TOKEN"],
+  when = "failure",
+}
 ```
 
 **What happens:**

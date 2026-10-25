@@ -125,7 +125,7 @@ The original format still works. It runs as one pipeline named `default` with on
 
 ```toml
 branches = ["main"]
-commands = ["mvn -B test", "./deploy.sh"]
+commands = ["mvn -B test", "helm upgrade --install app ./chart"]
 ```
 
 `branches` is an alias for the top-level `on`. Its equivalent in the current format is:
@@ -134,7 +134,7 @@ commands = ["mvn -B test", "./deploy.sh"]
 on = ["main"]
 
 [default]
-default = ["mvn -B test", "./deploy.sh"]
+default = ["mvn -B test", "helm upgrade --install app ./chart"]
 ```
 
 New files should use the pipeline format.
@@ -147,11 +147,42 @@ Every key in one file. This is for reference, not a recommendation to use all of
 on = ["main"]
 
 [backend]
-env = { JAVA_OPTS = "-Xmx512m" }
+env = {
+  JAVA_OPTS = "-Xmx512m",
+}
 
-build = { run = ["mvn -B -q package"], label = "Build API", dir = "services/api", timeout = "15m" }
-test = { run = "mvn -B verify", label = "Test API", dir = "services/api", needs = ["build"] }
-lint = { run = "make lint", label = "Lint", needs = [], optional = true }
-deploy = { run = "./deploy.sh \"$RODEO_COMMIT\"", label = "Deploy API", needs = ["test"], secrets = ["DEPLOY_TOKEN"], env = { STAGE = "prod" }, retries = 2, timeout = "5m", on_fail = "./rollback.sh" }
-notify = { run = "./notify.sh failed", label = "Alert", needs = ["deploy"], when = "failure" }
+build = {
+  run = ["mvn -B -q package"],
+  label = "Build API",
+  dir = "services/api",
+  timeout = "15m",
+}
+test = {
+  run = "mvn -B verify",
+  label = "Test API",
+  dir = "services/api",
+  needs = ["build"],
+}
+lint = {
+  run = "make lint",
+  label = "Lint",
+  needs = [],
+  optional = true,
+}
+deploy = {
+  run = "helm upgrade --install app ./chart --set image.tag=1.0.0",
+  label = "Deploy API",
+  needs = ["test"],
+  secrets = ["DEPLOY_TOKEN"],
+  env = { STAGE = "prod" },
+  retries = 2,
+  timeout = "5m",
+  on_fail = "helm rollback app",
+}
+notify = {
+  run = "curl -fsS -X POST https://hooks.example.com/failed",
+  label = "Alert",
+  needs = ["deploy"],
+  when = "failure",
+}
 ```

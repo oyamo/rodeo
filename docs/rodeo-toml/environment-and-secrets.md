@@ -22,9 +22,15 @@ Use `env` to set variables. It is a table of strings.
 
 ```toml
 [api]
-env = { JAVA_OPTS = "-Xmx512m", TZ = "UTC" }
+env = {
+  JAVA_OPTS = "-Xmx512m",
+  TZ = "UTC",
+}
 build = "mvn -B package"
-deploy = { run = "./deploy.sh", env = { STAGE = "production" } }
+deploy = {
+  run = "helm upgrade --install app ./chart",
+  env = { STAGE = "production" },
+}
 ```
 
 The `deploy` stage receives `JAVA_OPTS`, `TZ` and `STAGE`. The `build` stage receives `JAVA_OPTS` and `TZ`.
@@ -47,7 +53,10 @@ Use them in scripts to tag artifacts, record deployments, or name logs:
 
 ```toml
 [api]
-deploy = { run = "./deploy.sh \"$RODEO_COMMIT\"", label = "Deploy release" }
+deploy = {
+  run = "helm upgrade --install app ./chart --set image.tag=1.0.0",
+  label = "Deploy release",
+}
 ```
 
 ## Secrets
@@ -56,7 +65,10 @@ Secrets are values stored on the server. The repository only asks for them by na
 
 ```toml
 [api]
-deploy = { run = "./deploy.sh", secrets = ["DEPLOY_TOKEN"] }
+deploy = {
+  run = "helm upgrade --install app ./chart",
+  secrets = ["DEPLOY_TOKEN"],
+}
 ```
 
 A secret reaches a stage only when all three conditions hold:

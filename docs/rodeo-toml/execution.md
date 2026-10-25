@@ -54,7 +54,10 @@ Containers have no network by default. A stage that downloads dependencies or ca
 ```toml
 [web]
 image = "node:22"
-build = { run = "npm ci", network = true }
+build = {
+  run = "npm ci",
+  network = true,
+}
 ```
 
 `network` needs an image. A stage that runs on the server already has the server's network.
@@ -75,7 +78,11 @@ image = "alpine:3.20"
 
 [app]
 build  = "make"
-deploy = { run = "systemctl restart app", host = true, needs = ["build"] }
+deploy = {
+  run = "systemctl restart app",
+  host = true,
+  needs = ["build"],
+}
 ```
 
 `build` runs in a container, and `deploy` runs on the server.
@@ -86,7 +93,10 @@ By default a stage runs in the repository root. `dir` changes that to a subdirec
 
 ```toml
 [web]
-build = { run = ["npm ci", "npm run build"], dir = "apps/web" }
+build = {
+  run = ["npm ci", "npm run build"],
+  dir = "apps/web",
+}
 ```
 
 | Rule | Detail |
@@ -101,7 +111,10 @@ build = { run = ["npm ci", "npm run build"], dir = "apps/web" }
 
 ```toml
 [api]
-migrate = { run = "./migrate.sh", timeout = "30m" }
+migrate = {
+  run = "npx prisma migrate deploy",
+  timeout = "30m",
+}
 ```
 
 | Format | Meaning |
@@ -120,7 +133,10 @@ Cloning the repository has its own fixed limit of 5 minutes.
 
 ```toml
 [api]
-deploy = { run = "./deploy.sh", retries = 2 }
+deploy = {
+  run = "helm upgrade --install app ./chart",
+  retries = 2,
+}
 ```
 
 With `retries = 2`, a stage can run up to three times. rodeo waits 10 seconds between attempts. Each attempt runs every command in the stage from the beginning.
@@ -133,7 +149,10 @@ Retry only steps that are safe to repeat. A script that is not idempotent should
 
 ```toml
 [api]
-lint = { run = "make lint", optional = true }
+lint = {
+  run = "make lint",
+  optional = true,
+}
 ```
 
 An optional stage that fails does not fail the run, and its dependents still run. The failure is still recorded in the logs and in the summary as `FAILED`.
@@ -144,7 +163,11 @@ An optional stage that fails does not fail the run, and its dependents still run
 
 ```toml
 [api]
-deploy = { run = "./deploy.sh", retries = 1, on_fail = "./rollback.sh" }
+deploy = {
+  run = "helm upgrade --install app ./chart",
+  retries = 1,
+  on_fail = "helm rollback app",
+}
 ```
 
 Use `on_fail` for cleanup or for undoing partial work. It does not change the stage's status. The stage is still `FAILED`, and the `on_fail` commands do not affect whether later stages run. To react to a failure with a separate stage, use `when = "failure"`. See [Dependencies and conditions](dependencies-and-conditions.md#roll-back-on-failure).
@@ -180,7 +203,7 @@ REPLICAS=3
 
 ```toml
 [frontend.deploy]
-run = "./scripts/deploy-frontend.sh"
+run = "rsync -az dist/ deploy@web.example.com:/srv/web/"
 env_file = "deploy/production.env"
 network = true
 ```

@@ -82,7 +82,7 @@ A run in which `backend/deploy` fails. Its `on_fail` commands run, and the stage
 14:02:12.023 INFO  [3f9c1a2e frontend/build] step 1/1 $ npm ci && npm run build
 14:02:15.230 INFO  [3f9c1a2e backend/build] SUCCEEDED in 3.2s
 14:02:15.231 INFO  [3f9c1a2e backend/deploy] STARTED  deploy
-14:02:15.240 INFO  [3f9c1a2e backend/deploy] step 1/1 $ ./scripts/deploy-backend.sh
+14:02:15.240 INFO  [3f9c1a2e backend/deploy] step 1/1 $ helm upgrade --install backend ./chart
 14:02:15.512 INFO  [3f9c1a2e backend/deploy] | connecting to 10.0.4.12
 14:02:17.903 INFO  [3f9c1a2e backend/deploy] | health check returned 503
 14:02:17.904 WARN  [3f9c1a2e backend/deploy] running on_fail commands

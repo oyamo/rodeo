@@ -4,11 +4,10 @@ COPY pom.xml .
 COPY src ./src
 RUN mvn -B -q package -DskipTests
 
-FROM eclipse-temurin:21-jre
-RUN apt-get update \
-    && apt-get install -y --no-install-recommends git ca-certificates \
-    && rm -rf /var/lib/apt/lists/* \
-    && useradd --system --create-home --home-dir /home/rodeo rodeo
+FROM eclipse-temurin:21-jre-alpine
+RUN apk add --no-cache git ca-certificates \
+    && addgroup -S rodeo \
+    && adduser -S -G rodeo -h /home/rodeo rodeo
 COPY --from=build /build/target/rodeo-0.1.0-SNAPSHOT.jar /app/rodeo.jar
 USER rodeo
 EXPOSE 8080

@@ -55,3 +55,9 @@ deploy = {
 mvn -B package
 java -jar target/rodeo-0.1.0-SNAPSHOT.jar --rodeo.config=/etc/rodeo/config.toml
 ```
+
+Or run the published image:
+
+```bash
+docker run -d -p 8080:8080 -v /etc/rodeo/config.toml:/etc/rodeo/config.toml:ro ghcr.io/oyamo/rodeo:latest
+```

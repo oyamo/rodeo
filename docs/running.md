@@ -11,7 +11,7 @@ docker run -d --name rodeo \
   --restart unless-stopped \
   -v /etc/rodeo/config.toml:/etc/rodeo/config.toml:ro \
   -p 8080:8080 \
-  rodeo:latest
+  ghcr.io/oyamo/rodeo:latest
 ```
 
 Follow the log with `docker logs -f rodeo`. Stop the container with `docker stop rodeo`.

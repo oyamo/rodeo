@@ -1,13 +1,36 @@
 # Install with Docker
 
-This page builds the rodeo image and checks that it works. To run the container, see [Running rodeo](../running.md).
+Each push to `main` publishes an image to GitHub Container Registry. You can run it without building anything.
 
-## Prerequisites
+## Pull the image
 
-- Docker Engine or Docker Desktop
-- The rodeo source code, with the `Dockerfile` at its root
+```bash
+docker pull ghcr.io/oyamo/rodeo:latest
+```
 
-## Build the image
+Released versions are tagged with their version number, for example `ghcr.io/oyamo/rodeo:1.2.0`. Each commit is also tagged with its SHA.
+
+The package must be public for anyone to pull it without logging in. Packages published by a workflow start as private. To make it public once, open **GitHub → Packages → rodeo → Package settings → Change visibility → Public**.
+
+## Run the image
+
+Mount your configuration file where rodeo expects it, and expose the port:
+
+```bash
+docker run -d --name rodeo \
+  --restart unless-stopped \
+  -v /etc/rodeo/config.toml:/etc/rodeo/config.toml:ro \
+  -p 8080:8080 \
+  ghcr.io/oyamo/rodeo:latest
+```
+
+See [Configuration](../configuration.md) for the file's contents, and [Running rodeo](../running.md) for the rest of the setup.
+
+## Build from source
+
+The rest of this page builds the same image from the repository.
+
+### Build the image
 
 From the project root:
 

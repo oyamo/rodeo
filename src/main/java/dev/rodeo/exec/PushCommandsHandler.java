@@ -1,6 +1,7 @@
 package dev.rodeo.exec;
 
 import dev.rodeo.config.ExecProperties;
+import dev.rodeo.config.GitProperties;
 import dev.rodeo.config.ToolProperties;
 import dev.rodeo.model.PushEvent;
 import dev.rodeo.pipeline.Elapsed;
@@ -20,6 +21,7 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Duration;
+import java.util.ArrayList;
 import java.time.Instant;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -49,6 +51,7 @@ public class PushCommandsHandler implements PushEventHandler {
     private final StatusReporter statusReporter;
     private final ExecProperties execProperties;
     private final ToolProperties tools;
+    private final GitProperties git;
 
     public PushCommandsHandler(
             @Qualifier("pushExecutor") ExecutorService executor,
@@ -57,7 +60,8 @@ public class PushCommandsHandler implements PushEventHandler {
             StageExecutor stageExecutor,
             StatusReporter statusReporter,
             ExecProperties execProperties,
-            ToolProperties tools) {
+            ToolProperties tools,
+            GitProperties git) {
         this.executor = executor;
         this.stagePool = stagePool;
         this.parser = parser;
@@ -65,6 +69,7 @@ public class PushCommandsHandler implements PushEventHandler {
         this.statusReporter = statusReporter;
         this.execProperties = execProperties;
         this.tools = tools;
+        this.git = git;
     }
 
     @Override
@@ -79,10 +84,14 @@ public class PushCommandsHandler implements PushEventHandler {
     private void runForPush(String runId, PushEvent event) {
         try {
             Path workspace = Files.createTempDirectory("rodeo-");
+            Path credentials = git.token() == null || git.sshKey() != null ? null : writeCredentials(event);
             try {
-                runInWorkspace(runId, event, workspace);
+                runInWorkspace(runId, event, workspace, credentials);
             } finally {
                 FileSystemUtils.deleteRecursively(workspace);
+                if (credentials != null) {
+                    Files.deleteIfExists(credentials);
+                }
             }
         } catch (Exception e) {
             log.error("run {} aborted for {} on {}: {}", runId, event.repository(), event.branch(), e.getMessage());
@@ -91,12 +100,18 @@ public class PushCommandsHandler implements PushEventHandler {
         }
     }
 
-    private void runInWorkspace(String runId, PushEvent event, Path workspace)
+    private Path writeCredentials(PushEvent event) throws IOException {
+        Path file = Files.createTempFile("rodeo-credentials-", "");
+        Files.writeString(file, GitAccess.credentialLine(event.cloneUrl(), git.token()) + "\n");
+        return file;
+    }
+
+    private void runInWorkspace(String runId, PushEvent event, Path workspace, Path credentials)
             throws IOException, InterruptedException {
         Instant started = Instant.now();
         log.info("run {} received {} push to {} on {}", runId, event.provider(), event.repository(), event.branch());
 
-        clone(event, workspace);
+        clone(event, workspace, credentials);
 
         Path configFile = workspace.resolve(CONFIG_FILE);
         if (!Files.exists(configFile)) {
@@ -156,11 +171,13 @@ public class PushCommandsHandler implements PushEventHandler {
         }
     }
 
-    private void clone(PushEvent event, Path workspace) throws IOException, InterruptedException {
-        ProcessBuilder builder = new ProcessBuilder(
-                tools.git(), "clone", "--depth", "1", "--branch", event.branch(),
-                "--", event.cloneUrl(), workspace.toString())
-                .inheritIO();
+    private void clone(PushEvent event, Path workspace, Path credentials) throws IOException, InterruptedException {
+        List<String> argv = new ArrayList<>();
+        argv.add(tools.git());
+        argv.addAll(GitAccess.options(git, credentials));
+        argv.addAll(List.of("clone", "--depth", "1", "--branch", event.branch(),
+                "--", GitAccess.cloneUrl(git, event.cloneUrl()), workspace.toString()));
+        ProcessBuilder builder = new ProcessBuilder(argv).inheritIO();
         builder.environment().clear();
         builder.environment().put("PATH", execProperties.path());
         builder.environment().put("HOME", execProperties.home());

@@ -19,7 +19,7 @@ GitHub or GitLab ──webhook──▶ rodeo
 ## Prerequisites
 
 - rodeo is installed and reachable over HTTPS. See [Install](installation/docker.md) and [Running rodeo](running.md).
-- The repository is public. rodeo cannot clone private repositories yet.
+- The repository is readable by rodeo. For a private repository, set `token` or `ssh-key` under `[rodeo.git]`. See [Configuration](configuration.md#rodeogit).
 - The server has Java 21 and Maven, and the `rodeo` user can run them.
 - A service named `app` is installed with systemd and runs `/opt/app/app.jar`.
 

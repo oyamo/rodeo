@@ -39,6 +39,9 @@ shell = "/bin/sh"
 docker = "/usr/bin/docker"
 git = "/usr/bin/git"
 
+[rodeo.git]
+token = "github_pat_..."
+
 [rodeo.secrets]
 DEPLOY_TOKEN = "..."
 REGISTRY_PASSWORD = "..."
@@ -90,6 +93,17 @@ The token is read by rodeo itself. Stage commands never receive it.
 | `git` | `git` | Git executable used to clone repositories |
 
 The defaults are bare names, which the operating system resolves through the `PATH` of the rodeo process. For a fully explicit setup, give absolute paths, as in the example above.
+
+### `[rodeo.git]`
+
+Lets rodeo clone private repositories. Set one of these two keys, or neither for public repositories only.
+
+| Key | Description |
+|---|---|
+| `token` | A token with read access to the repositories, such as a GitHub fine-grained token or a GitLab token. rodeo clones over HTTPS and sends the token through a credentials file that exists only for the duration of the clone. |
+| `ssh-key` | Path to a read-only SSH deploy key on the server. rodeo clones the repository over SSH, and never sends the key anywhere else. |
+
+When `ssh-key` is set, rodeo uses SSH for every clone, and `token` is not used. Add the matching public key as a deploy key on each repository.
 
 ### `[rodeo.secrets]`
 

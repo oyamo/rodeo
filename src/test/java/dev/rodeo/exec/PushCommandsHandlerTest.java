@@ -3,6 +3,7 @@ package dev.rodeo.exec;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import dev.rodeo.config.ExecProperties;
+import dev.rodeo.config.GitProperties;
 import dev.rodeo.config.ToolProperties;
 import dev.rodeo.config.SecretsProperties;
 import dev.rodeo.model.Provider;
@@ -134,7 +135,7 @@ class PushCommandsHandlerTest {
                 parser,
                 new StageExecutor(commandRunner, new ContainerRunner(commandRunner, props, ToolProperties.defaults()), props, secrets),
                 (event, context, state, description) ->
-                        statuses.add(context + " " + state + " " + description), props, ToolProperties.defaults());
+                        statuses.add(context + " " + state + " " + description), props, ToolProperties.defaults(), GitProperties.none());
 
         handler.handle(new PushEvent(
                 Provider.GITHUB,

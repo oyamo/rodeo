@@ -31,6 +31,8 @@ public class PipelineParser {
     private static final int MAX_LABEL_LENGTH = 60;
     private static final Set<String> BRANCH_KEYS = Set.of("on", "branches");
     private static final Set<String> PIPELINE_OPTIONS = Set.of("on", "env");
+    private static final Set<String> STAGE_OPTIONS = Set.of(
+            "run", "label", "needs", "when", "dir", "env", "secrets", "timeout", "retries", "optional", "on_fail");
 
     private final Set<String> allowedSecrets;
 
@@ -133,6 +135,13 @@ public class PipelineParser {
         }
         if (!(value instanceof TomlTable options)) {
             throw new PipelineException(where + " must be a command, a list of commands, or a table");
+        }
+
+        for (String option : options.keySet()) {
+            if (!STAGE_OPTIONS.contains(option)) {
+                throw new PipelineException(where + " has unknown option '" + option
+                        + "'; valid options are " + String.join(", ", STAGE_OPTIONS.stream().sorted().toList()));
+            }
         }
 
         Object run = options.get("run");

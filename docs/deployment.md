@@ -161,7 +161,7 @@ The previous jar is kept for one deploy. A second rollback needs a deploy of an 
 | Symptom | Where to look |
 |---|---|
 | The push returns `202`, but no run appears | Run `journalctl -u rodeo | grep "no pipeline"`. The branch is probably missing from `on`. |
-| `aborted` in the log | The `rodeo.toml` file is invalid. The message names the problem. See [Validation](rodeo-toml.md#validation). |
+| `aborted` in the log | The `rodeo.toml` file is invalid. The message names the problem. See [Validation](rodeo-toml/validation.md). |
 | `git clone` fails | The repository is private, or the branch does not exist. |
 | A stage shows `FAILED` with `exited with` | Read the lines above that stage's `FAILED` line. |
 | `sudo: a password is required` | The sudoers rule is missing or names a different path to `systemctl`. Check `which systemctl`. |

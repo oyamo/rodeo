@@ -48,6 +48,18 @@ class PipelineParserTest {
     }
 
     @Test
+    void rejectsUnknownStageOptionInsteadOfIgnoringIt() {
+        assertThatThrownBy(() -> parser.parse("""
+                on = ["main"]
+
+                [app]
+                deploy = { run = "./deploy.sh", timout = "5m" }
+                """))
+                .isInstanceOf(PipelineException.class)
+                .hasMessageContaining("unknown option 'timout'");
+    }
+
+    @Test
     void rejectsBlankLabel() {
         assertThatThrownBy(() -> parser.parse("""
                 on = ["main"]

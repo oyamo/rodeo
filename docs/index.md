@@ -29,7 +29,7 @@ deploy = { run = "./scripts/deploy-backend.sh", needs = ["build"], secrets = ["D
 1. [Install](installation/docker.md) with Docker, or on [Linux and macOS](installation/linux.md) or [Windows](installation/windows.md).
 2. [Configure](configuration.md) the webhook secrets and execution limits.
 3. [Run](running.md) the service and connect repositories.
-4. Write a [rodeo.toml](rodeo-toml.md) and follow the [deployment guide](deployment.md).
+4. Write a [rodeo.toml](rodeo-toml/index.md) and follow the [deployment guide](deployment.md).
 
 ## Documentation
 
@@ -38,7 +38,7 @@ deploy = { run = "./scripts/deploy-backend.sh", needs = ["build"], secrets = ["D
 | Installation | [Docker](installation/docker.md), [Linux and macOS](installation/linux.md), [Windows](installation/windows.md) |
 | Configuration | [Environment variables](configuration.md) |
 | Operations | [Running rodeo](running.md), [Logs](logs.md) |
-| Pipeline definition | [rodeo.toml reference](rodeo-toml.md), [Examples](examples.md) |
+| Pipeline definition | [rodeo.toml reference](rodeo-toml/index.md), [Examples](examples.md) |
 | Guides | [Deploy on push](deployment.md) |
 
 ## Requirements
@@ -51,4 +51,4 @@ deploy = { run = "./scripts/deploy-backend.sh", needs = ["build"], secrets = ["D
 | A public HTTPS address | Receiving webhooks from GitHub or GitLab |
 
 !!! warning "Stage commands run on your server"
-    Commands in `rodeo.toml` run on the machine that runs rodeo, with that machine's permissions. Anyone who can push to a listed branch controls what runs. Enable only repositories you trust. See [Security](rodeo-toml.md#security).
+    Commands in `rodeo.toml` run on the machine that runs rodeo, with that machine's permissions. Anyone who can push to a listed branch controls what runs. Enable only repositories you trust. See [Security](rodeo-toml/index.md#security).

@@ -31,7 +31,7 @@ A run moves through these messages in order.
 | `run <id> no pipeline is triggered by branch <branch>` | INFO | The file has no pipeline for this branch |
 | `run <id> SUCCEEDED in <time>` | INFO | Every stage succeeded |
 | `run <id> FAILED in <time>` | INFO | At least one stage failed without `optional` |
-| `run <id> aborted: ...` | ERROR | The run stopped before or during setup, such as a clone failure or an invalid file |
+| `run <id> aborted for <repo> on <branch>: <reason>` | ERROR | The run stopped before any stage ran, such as a clone failure or an invalid `rodeo.toml`. See [Validation and errors](rodeo-toml/validation.md). |
 
 ## Stage lifecycle
 

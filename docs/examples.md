@@ -190,4 +190,4 @@ notify = { run = "./scripts/notify.sh release-failed", label = "Alert the releas
 | Several projects in one repository | Example 4 |
 | Several regions or a formal release process | Example 5 |
 
-For every field, see the [rodeo.toml reference](rodeo-toml.md). For the log lines these examples produce, see [Logs](logs.md).
+For every field, see the [rodeo.toml reference](rodeo-toml/index.md). For the log lines these examples produce, see [Logs](logs.md).

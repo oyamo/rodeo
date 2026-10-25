@@ -1,8 +1,10 @@
 # Install on Linux and macOS
 
-These steps install rodeo directly on the host, without Docker.
+This page installs the prerequisites, builds the rodeo jar, and checks the installation. To run rodeo as a service, see [Running rodeo](../running.md).
 
-## 1. Install the prerequisites
+## Prerequisites
+
+Install Java 21, Maven, and Git.
 
 === "Debian and Ubuntu"
 
@@ -33,15 +35,7 @@ These steps install rodeo directly on the host, without Docker.
 
     Add the two `export` lines to your shell profile to keep them.
 
-Confirm the versions:
-
-```bash
-java -version    # 21 or newer
-mvn -version
-git --version
-```
-
-## 2. Build the jar
+## Build the jar
 
 From the project root:
 
@@ -49,69 +43,28 @@ From the project root:
 mvn -B package
 ```
 
-The jar is written to `target/rodeo-0.1.0-SNAPSHOT.jar`. Copy it to a location for the service:
+The jar is written to `target/rodeo-0.1.0-SNAPSHOT.jar`.
+
+## Install the jar
+
+Copy the jar to a fixed location, so the service does not depend on the source tree:
 
 ```bash
 sudo mkdir -p /opt/rodeo
 sudo cp target/rodeo-0.1.0-SNAPSHOT.jar /opt/rodeo/rodeo.jar
 ```
 
-## 3. Create a service user
-
-Run rodeo as its own account, not as your login user:
+## Verify the installation
 
 ```bash
-sudo useradd --system --create-home --home-dir /var/lib/rodeo --shell /usr/sbin/nologin rodeo
+java -version
+mvn -version
+git --version
 ```
 
-## 4. Store the secrets
-
-```bash
-sudo mkdir -p /etc/rodeo
-sudo tee /etc/rodeo/rodeo.env >/dev/null <<'EOF'
-GITHUB_WEBHOOK_SECRET=replace-with-a-long-random-string
-GITLAB_WEBHOOK_SECRET=replace-with-another-long-random-string
-PORT=8080
-EOF
-sudo chown root:rodeo /etc/rodeo/rodeo.env
-sudo chmod 640 /etc/rodeo/rodeo.env
-```
-
-## 5. Run as a service (systemd)
-
-Create `/etc/systemd/system/rodeo.service`:
-
-```ini
-[Unit]
-Description=rodeo webhook service
-After=network-online.target
-Wants=network-online.target
-
-[Service]
-User=rodeo
-EnvironmentFile=/etc/rodeo/rodeo.env
-ExecStart=/usr/bin/java -jar /opt/rodeo/rodeo.jar
-Restart=on-failure
-
-[Install]
-WantedBy=multi-user.target
-```
-
-On macOS, run the jar directly, or write a `launchd` property list that sets the same variables.
-
-Start the service:
-
-```bash
-sudo systemctl daemon-reload
-sudo systemctl enable --now rodeo
-sudo systemctl status rodeo
-journalctl -u rodeo -f
-```
-
-## Commands in `rodeo.toml`
-
-Commands run as the `rodeo` user, with `PATH` and `HOME` set from that user's environment. Install every tool your commands need system-wide, for example `sudo apt-get install maven`, so it is on the default `PATH`.
+Each command should print a version. Java must be version 21 or later.
 
 ## Next steps
 
-Continue with [Configuration](../configuration.md) and [Running rodeo](../running.md).
+- [Configuration](../configuration.md): the variables rodeo needs before it starts
+- [Running rodeo](../running.md): run rodeo as a service and connect repositories

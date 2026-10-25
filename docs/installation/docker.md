@@ -1,40 +1,41 @@
 # Install with Docker
 
-The image includes the rodeo service, Java 21, and Git. Build it from the project root.
+This page builds the rodeo image and checks that it works. To run the container, see [Running rodeo](../running.md).
+
+## Prerequisites
+
+- Docker Engine or Docker Desktop
+- The rodeo source code, with the `Dockerfile` at its root
 
 ## Build the image
+
+From the project root:
 
 ```bash
 docker build -t rodeo:latest .
 ```
 
-## Run the container
+The image is based on Eclipse Temurin 21 and includes Git. It runs as a non-root user named `rodeo`.
 
-Pass the secrets with an environment file so they do not appear in your shell history:
+## Verify the image
 
-```bash
-cat > rodeo.env <<'EOF'
-GITHUB_WEBHOOK_SECRET=replace-with-a-long-random-string
-GITLAB_WEBHOOK_SECRET=replace-with-another-long-random-string
-EOF
-chmod 600 rodeo.env
-
-docker run -d --name rodeo \
-  --restart unless-stopped \
-  --env-file rodeo.env \
-  -p 8080:8080 \
-  rodeo:latest
-```
-
-Check that it started:
+Check the Java runtime:
 
 ```bash
-docker logs -f rodeo
+docker run --rm --entrypoint java rodeo:latest -version
 ```
 
-## Commands in `rodeo.toml`
+Check Git:
 
-The image contains only `git` and `sh`. A `rodeo.toml` command that needs another tool, such as Maven, Node, or Docker, fails unless that tool is in the image. Build your own image on top of `rodeo:latest` and install what your commands need:
+```bash
+docker run --rm --entrypoint git rodeo:latest --version
+```
+
+Both commands should print a version.
+
+## Add tools for stage commands
+
+The image contains only Git and `sh`. A stage that calls another tool, such as Maven, Node, or Docker, needs that tool in the image. Extend the base image:
 
 ```dockerfile
 FROM rodeo:latest
@@ -45,16 +46,9 @@ RUN apt-get update \
 USER rodeo
 ```
 
-## Update
-
-Rebuild the image and replace the container. The secrets stay in `rodeo.env`:
-
-```bash
-docker build -t rodeo:latest .
-docker rm -f rodeo
-docker run -d --name rodeo --restart unless-stopped --env-file rodeo.env -p 8080:8080 rodeo:latest
-```
+Build the extended image under a new tag, and use that tag when you run the container.
 
 ## Next steps
 
-Continue with [Configuration](../configuration.md) and [Running rodeo](../running.md).
+- [Configuration](../configuration.md): the variables rodeo needs before it starts
+- [Running rodeo](../running.md): start the container and connect repositories

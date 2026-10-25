@@ -68,7 +68,7 @@ public class PushCommandsHandler implements PushEventHandler {
                 FileSystemUtils.deleteRecursively(workspace);
             }
         } catch (Exception e) {
-            log.error("run {} aborted: {} on {}: {}", runId, event.repository(), event.branch(), e.getMessage());
+            log.error("run {} aborted for {} on {}: {}", runId, event.repository(), event.branch(), e.getMessage());
         }
     }
 

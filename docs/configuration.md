@@ -44,14 +44,58 @@ Enter the same value in the matching webhook settings. See [Running rodeo](runni
 
 ## Setting variables
 
-| Where rodeo runs | How |
-|---|---|
-| Docker | `--env-file rodeo.env`. See [Docker](installation/docker.md). |
-| systemd | `EnvironmentFile=` in the unit file. See [Linux and macOS](installation/linux.md). |
-| Windows | Machine-level variables. See [Windows](installation/windows.md). |
-| Terminal | `export NAME=value` (Bash) or `$env:NAME = "value"` (PowerShell) |
-
 Variables are read at startup. After a change, restart rodeo.
+
+### Docker
+
+Create `rodeo.env` next to the place you run `docker run` and restrict its permissions:
+
+```bash
+cat > rodeo.env <<'EOF'
+GITHUB_WEBHOOK_SECRET=replace-with-a-long-random-string
+GITLAB_WEBHOOK_SECRET=replace-with-another-long-random-string
+EOF
+chmod 600 rodeo.env
+```
+
+Pass it with `--env-file rodeo.env` when you start the container.
+
+### Linux and macOS (systemd)
+
+Store the variables in a file that only root and the `rodeo` group can read:
+
+```bash
+sudo mkdir -p /etc/rodeo
+sudo tee /etc/rodeo/rodeo.env >/dev/null <<'EOF'
+GITHUB_WEBHOOK_SECRET=replace-with-a-long-random-string
+GITLAB_WEBHOOK_SECRET=replace-with-another-long-random-string
+EOF
+sudo chown root:rodeo /etc/rodeo/rodeo.env
+sudo chmod 640 /etc/rodeo/rodeo.env
+```
+
+The service unit loads this file with `EnvironmentFile=`. See [Running rodeo](running.md#linux-and-macos-systemd).
+
+### Windows
+
+Set machine-level variables. Open a new PowerShell window after you set them:
+
+```powershell
+[Environment]::SetEnvironmentVariable("GITHUB_WEBHOOK_SECRET", "replace-with-a-long-random-string", "Machine")
+[Environment]::SetEnvironmentVariable("GITLAB_WEBHOOK_SECRET", "replace-with-another-long-random-string", "Machine")
+```
+
+### Terminal
+
+For a local test, set the variables in the current shell:
+
+```bash
+export GITHUB_WEBHOOK_SECRET=...      # Bash
+```
+
+```powershell
+$env:GITHUB_WEBHOOK_SECRET = "..."    # PowerShell
+```
 
 When you rotate a webhook secret, update the variable, restart rodeo, and then update the webhook in the provider. Deliveries sent between the two steps are rejected with `401`.
 

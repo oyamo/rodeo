@@ -2,15 +2,76 @@
 
 ## Start
 
-With rodeo installed and configured, start it using the method you chose:
+Set the variables described in [Configuration](configuration.md) first. Then start rodeo with the method that matches your installation.
 
-| Method | Command |
-|---|---|
-| Docker | `docker start rodeo` |
-| systemd | `sudo systemctl start rodeo` |
-| Windows | `java -jar rodeo-0.1.0-SNAPSHOT.jar` |
+### Docker
 
-When it is running, the log shows the port it listens on. Stop it with `docker stop rodeo`, `sudo systemctl stop rodeo`, or Ctrl+C in the terminal.
+```bash
+docker run -d --name rodeo \
+  --restart unless-stopped \
+  --env-file rodeo.env \
+  -p 8080:8080 \
+  rodeo:latest
+```
+
+Follow the log with `docker logs -f rodeo`. Stop the container with `docker stop rodeo`.
+
+### Linux and macOS (systemd)
+
+Create a dedicated service user, so rodeo does not run as your login account:
+
+```bash
+sudo useradd --system --create-home --home-dir /var/lib/rodeo --shell /usr/sbin/nologin rodeo
+```
+
+Create `/etc/systemd/system/rodeo.service`:
+
+```ini
+[Unit]
+Description=rodeo pipeline runner
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+User=rodeo
+EnvironmentFile=/etc/rodeo/rodeo.env
+ExecStart=/usr/bin/java -jar /opt/rodeo/rodeo.jar
+Restart=on-failure
+
+[Install]
+WantedBy=multi-user.target
+```
+
+Start the service and follow its log:
+
+```bash
+sudo systemctl daemon-reload
+sudo systemctl enable --now rodeo
+sudo systemctl status rodeo
+journalctl -u rodeo -f
+```
+
+Stage commands run as the `rodeo` user. Install the tools they need system-wide, so they are on the default `PATH`.
+
+On macOS, run the jar directly, or register it with `launchd` using the same variables.
+
+### Windows
+
+From the project folder, in a PowerShell window that has the variables set:
+
+```powershell
+java -jar target\rodeo-0.1.0-SNAPSHOT.jar
+```
+
+To run rodeo in the background at startup, register it as a Windows service with a wrapper such as [NSSM](https://nssm.cc/). Point the service at `java` with the arguments `-jar C:\rodeo\rodeo-0.1.0-SNAPSHOT.jar`. The service account must have the machine variables set and must reach your repositories.
+
+### Verify it is running
+
+```bash
+curl -i -X POST http://localhost:8080/webhooks/github
+```
+
+Without a signature this returns `401`. Any HTTP response confirms that rodeo is listening.
 
 ## Expose it over HTTPS
 
@@ -92,5 +153,5 @@ curl -i -X POST https://rodeo.example.com/webhooks/github \
 | Every delivery returns `401` | The secret in rodeo and the secret in the provider are different. Re-enter the value in the provider. |
 | rodeo does not start | One of the two secrets is not set. See [Configuration](configuration.md). |
 | Deliveries return `202` but nothing runs | The repository has no `rodeo.toml`, or no pipeline lists the pushed branch in `on`. See [Logs](logs.md#run-lifecycle). |
-| A run shows `aborted` | The `rodeo.toml` file is invalid. The message names the problem. See [Validation](rodeo-toml.md#validation). |
+| A run shows `aborted` | The `rodeo.toml` file is invalid. The message names the problem. See [Validation](rodeo-toml/validation.md). |
 | Connection refused or timeout from the provider | The proxy is not reachable from the internet, or DNS does not point at the host. |

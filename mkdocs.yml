@@ -32,6 +32,14 @@ markdown_extensions:
 
 nav:
   - Home: index.md
+  - rodeo.toml:
+      - Overview: rodeo-toml/index.md
+      - Pipelines and stages: rodeo-toml/pipelines-and-stages.md
+      - Dependencies and conditions: rodeo-toml/dependencies-and-conditions.md
+      - Execution controls: rodeo-toml/execution.md
+      - Environment and secrets: rodeo-toml/environment-and-secrets.md
+      - Validation and errors: rodeo-toml/validation.md
+      - Reference: rodeo-toml/reference.md
   - Installation:
       - Docker: installation/docker.md
       - Linux and macOS: installation/linux.md
@@ -40,6 +48,5 @@ nav:
   - Running rodeo: running.md
   - Logs: logs.md
   - Examples: examples.md
-  - rodeo.toml reference: rodeo-toml.md
   - Guides:
       - Deploy on push: deployment.md

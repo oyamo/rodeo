@@ -12,20 +12,16 @@ Push-triggered pipeline runner for Git repositories. On a push to a configured b
 ```toml
 on = ["main"]
 
-# a shell script file, using the server's default image
 [frontend]
 build = "./scripts/build-frontend.sh"
+deploy = {
+  run = "./scripts/deploy-frontend.sh",
+  needs = ["build"],
+  network = true,
+}
 
-[frontend.deploy]
-run = "./scripts/deploy-frontend.sh"
-needs = ["build", "payment-service.deploy"]
-env_file = "deploy/production.env"
-network = true
-
-# five commands, run in order, in the stage's own image
 [payment-service]
 image = "maven:3.9-eclipse-temurin-21"
-
 build = [
   "mvn -B -q clean",
   "mvn -B verify",
@@ -33,25 +29,26 @@ build = [
   "mkdir -p dist",
   "cp target/*.jar dist/",
 ]
+deploy = {
+  run = "./scripts/deploy-payment.sh",
+  needs = ["build"],
+  network = true,
+}
 
-[payment-service.deploy]
-run = "./scripts/deploy-payment.sh"
-needs = ["build"]
-network = true
-
-# docker build and deploy, on the server, where the Docker daemon runs
-[auth-service.build]
-run = [
-  "docker build -t auth-service:$RODEO_COMMIT .",
-  "docker tag auth-service:$RODEO_COMMIT auth-service:latest",
-]
-host = true
-
-[auth-service.deploy]
-teardown = "docker compose down"
-run = "docker compose up -d auth-service"
-needs = ["build"]
-host = true
+[auth-service]
+build = {
+  run = [
+    "docker build -t auth-service .",
+    "docker tag auth-service auth-service:latest",
+  ],
+  host = true,
+}
+deploy = {
+  teardown = "docker compose down",
+  run = "docker compose up -d auth-service",
+  needs = ["build"],
+  host = true,
+}
 ```
 
 ## Quick start

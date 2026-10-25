@@ -64,9 +64,9 @@ class DockerIsolationTest {
     void containersDoNotCarryStateBetweenStages() throws Exception {
         Path workspace = Files.createDirectory(tempDir.resolve("workspace"));
 
-        assertThat(execute(workspace, stage("first", "touch /root/marker", false)))
+        assertThat(execute(workspace, stage("first", "touch /tmp/marker", false)))
                 .isEqualTo(Status.SUCCEEDED);
-        assertThat(execute(workspace, stage("second", "test -f /root/marker", false)))
+        assertThat(execute(workspace, stage("second", "test -f /tmp/marker", false)))
                 .isEqualTo(Status.FAILED);
     }
 

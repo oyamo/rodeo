@@ -29,6 +29,8 @@ image = "node:22"
 build = "npm ci && npm run build"
 ```
 
+`image` is optional. When no image is set in the stage, its pipeline, or the top level, the server's `default-image` is used. If the server sets neither, the stage has nothing to run in, and it is rejected unless host execution is allowed.
+
 The image must provide `sh`, because commands run as `sh -c`. Every tool a command uses must be installed in the image.
 
 ### What a container gets

@@ -10,7 +10,18 @@ public record ExecProperties(
         String stageCpus,
         String stageMemory,
         String path,
-        String home) {
+        String home,
+        String defaultImage) {
+
+    public ExecProperties(
+            int maxParallelStages,
+            boolean allowHostExecution,
+            String stageCpus,
+            String stageMemory,
+            String path,
+            String home) {
+        this(maxParallelStages, allowHostExecution, stageCpus, stageMemory, path, home, null);
+    }
 
     @ConstructorBinding
     public ExecProperties {

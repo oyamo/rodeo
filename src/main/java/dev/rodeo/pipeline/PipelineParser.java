@@ -39,10 +39,12 @@ public class PipelineParser {
 
     private final Set<String> allowedSecrets;
     private final boolean allowHostExecution;
+    private final String defaultImage;
 
     public PipelineParser(ExecProperties execProperties, SecretsProperties secrets) {
         this.allowedSecrets = Set.copyOf(secrets.values().keySet());
         this.allowHostExecution = execProperties.allowHostExecution();
+        this.defaultImage = execProperties.defaultImage();
     }
 
     public PipelineFile parse(String toml) {
@@ -52,7 +54,7 @@ public class PipelineParser {
         }
 
         List<String> defaultBranches = branches(result);
-        String defaultImage = optionalImage(result, null);
+        String defaultImage = optionalImage(result, this.defaultImage);
         if (result.contains("commands")) {
             return legacy(result, defaultBranches, defaultImage);
         }

@@ -12,13 +12,22 @@ Push-triggered pipeline runner for Git repositories. On a push to a configured b
 ```toml
 on = ["main"]
 
+# no image: uses the server's default-image
 [frontend]
 build  = "npm ci && npm run build"
-deploy = { run = "./scripts/deploy-frontend.sh", needs = ["build", "backend.deploy"] }
+deploy = { run = "./scripts/deploy-frontend.sh", needs = ["build", "payment-service.deploy"], network = true }
 
-[backend]
+# its own image
+[payment-service]
+image  = "maven:3.9-eclipse-temurin-21"
 build  = "mvn -B verify"
-deploy = { run = "./scripts/deploy-backend.sh", needs = ["build"] }
+deploy = { run = "./scripts/deploy-payment.sh", needs = ["build"], network = true }
+
+# runs on the server itself
+[auth-service]
+image  = "maven:3.9-eclipse-temurin-21"
+build  = "mvn -B verify"
+deploy = { run = "systemctl restart auth-service", host = true, needs = ["build"] }
 ```
 
 ## Quick start

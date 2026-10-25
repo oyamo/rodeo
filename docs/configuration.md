@@ -79,6 +79,7 @@ The token is read by rodeo itself. Stage commands never receive it.
 | `stage-memory` | `"1g"` | Memory limit for each stage container, such as `512m` or `2g` |
 | `path` | `/usr/local/bin:/usr/bin:/bin` | `PATH` given to commands that run on the server, and to the Docker client |
 | `home` | `/var/lib/rodeo` | `HOME` given to commands that run on the server, and to the Docker client |
+| `default-image` | none | Container image used by any stage that does not name one. Set it so pipeline files can omit `image`. |
 
 ### `[rodeo.tools]`
 

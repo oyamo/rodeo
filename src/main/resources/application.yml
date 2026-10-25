@@ -1,0 +1,10 @@
+server:
+  port: ${PORT:8080}
+
+github:
+  webhook:
+    secret: ${GITHUB_WEBHOOK_SECRET:}
+
+gitlab:
+  webhook:
+    secret: ${GITLAB_WEBHOOK_SECRET:}

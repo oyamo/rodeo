@@ -1,0 +1,6 @@
+target/
+docs/
+.git/
+.gitignore
+README.md
+mkdocs.yml

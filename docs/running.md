@@ -2,14 +2,14 @@
 
 ## Start
 
-Set the variables described in [Configuration](configuration.md) first. Then start rodeo with the method that matches your installation.
+Write the configuration file described in [Configuration](configuration.md) first. Then start rodeo with the method that matches your installation.
 
 ### Docker
 
 ```bash
 docker run -d --name rodeo \
   --restart unless-stopped \
-  --env-file rodeo.env \
+  -v /etc/rodeo/config.toml:/etc/rodeo/config.toml:ro \
   -p 8080:8080 \
   rodeo:latest
 ```
@@ -34,8 +34,7 @@ Wants=network-online.target
 
 [Service]
 User=rodeo
-EnvironmentFile=/etc/rodeo/rodeo.env
-ExecStart=/usr/bin/java -jar /opt/rodeo/rodeo.jar
+ExecStart=/usr/bin/java -jar /opt/rodeo/rodeo.jar --rodeo.config=/etc/rodeo/config.toml
 Restart=on-failure
 
 [Install]
@@ -51,19 +50,19 @@ sudo systemctl status rodeo
 journalctl -u rodeo -f
 ```
 
-Stage commands run as the `rodeo` user. Install the tools they need system-wide, so they are on the default `PATH`.
+Stages run in containers, so the `rodeo` user must be able to run Docker. Membership of the `docker` group is equivalent to root on the server. Prefer rootless Docker for the service account.
 
-On macOS, run the jar directly, or register it with `launchd` using the same variables.
+On macOS, run the jar directly, or register it with `launchd` with the same `--rodeo.config` argument.
 
 ### Windows
 
-From the project folder, in a PowerShell window that has the variables set:
+From the project folder:
 
 ```powershell
-java -jar target\rodeo-0.1.0-SNAPSHOT.jar
+java -jar target\rodeo-0.1.0-SNAPSHOT.jar --rodeo.config=C:\rodeo\config.toml
 ```
 
-To run rodeo in the background at startup, register it as a Windows service with a wrapper such as [NSSM](https://nssm.cc/). Point the service at `java` with the arguments `-jar C:\rodeo\rodeo-0.1.0-SNAPSHOT.jar`. The service account must have the machine variables set and must reach your repositories.
+To run rodeo in the background at startup, register it as a Windows service with a wrapper such as [NSSM](https://nssm.cc/). Point the service at `java` with the arguments `-jar C:\rodeo\rodeo-0.1.0-SNAPSHOT.jar --rodeo.config=C:\rodeo\config.toml`. The service account must be able to read the configuration file and must reach your repositories.
 
 ### Verify it is running
 
@@ -96,7 +95,7 @@ Connect each repository to the matching endpoint. The payload URL is `https://<y
 1. Open the repository, then go to **Settings → Webhooks → Add webhook**.
 2. **Payload URL:** `https://<your-host>/webhooks/github`
 3. **Content type:** `application/json`
-4. **Secret:** the value of `GITHUB_WEBHOOK_SECRET`
+4. **Secret:** the value of `secret` under `[github.webhook]` in the configuration file
 5. **Which events:** **Just the push event**
 6. Save.
 
@@ -106,7 +105,7 @@ To connect every repository in an organization, add the webhook at the organizat
 
 1. Open the project, then go to **Settings → Webhooks → Add new webhook**.
 2. **URL:** `https://<your-host>/webhooks/gitlab`
-3. **Secret token:** the value of `GITLAB_WEBHOOK_SECRET`
+3. **Secret token:** the value of `secret` under `[gitlab.webhook]` in the configuration file
 4. **Trigger:** **Push events**
 5. Save, then select **Test → Push events** to send a test delivery.
 
@@ -127,7 +126,8 @@ You can test without a provider by sending a signed request yourself:
 
 ```bash
 BODY='{"ref":"refs/heads/main","after":"abc","repository":{"full_name":"octo/hello"},"commits":[]}'
-SIG="sha256=$(printf '%s' "$BODY" | openssl dgst -sha256 -hmac "$GITHUB_WEBHOOK_SECRET" | sed 's/^.* //')"
+SECRET='the-github-webhook-secret-from-config.toml'
+SIG="sha256=$(printf '%s' "$BODY" | openssl dgst -sha256 -hmac "$SECRET" | sed 's/^.* //')"
 
 curl -i -X POST https://rodeo.example.com/webhooks/github \
   -H 'Content-Type: application/json' \

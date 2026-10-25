@@ -3,15 +3,19 @@ package dev.rodeo.exec;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import dev.rodeo.config.ExecProperties;
+import dev.rodeo.config.ToolProperties;
+import dev.rodeo.config.SecretsProperties;
 import dev.rodeo.model.Provider;
 import dev.rodeo.model.PushEvent;
 import dev.rodeo.pipeline.CommandRunner;
+import dev.rodeo.pipeline.ContainerRunner;
 import dev.rodeo.pipeline.PipelineParser;
 import dev.rodeo.pipeline.StageExecutor;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -119,15 +123,18 @@ class PushCommandsHandlerTest {
     private List<String> runPush(Path remote, String branch) throws InterruptedException {
         ExecutorService executor = Executors.newSingleThreadExecutor();
         ExecutorService stagePool = Executors.newFixedThreadPool(4);
-        PipelineParser parser = new PipelineParser(new ExecProperties(4, List.of("DEPLOY_TOKEN")));
+        ExecProperties props = new ExecProperties(4, true, "1", "1g", "/usr/local/bin:/usr/bin:/bin", "/tmp");
+        SecretsProperties secrets = new SecretsProperties(Map.of("DEPLOY_TOKEN", "test-token"));
+        CommandRunner commandRunner = new CommandRunner(ToolProperties.defaults());
+        PipelineParser parser = new PipelineParser(props, secrets);
         List<String> statuses = new CopyOnWriteArrayList<>();
         PushCommandsHandler handler = new PushCommandsHandler(
                 executor,
                 stagePool,
                 parser,
-                new StageExecutor(new CommandRunner()),
+                new StageExecutor(commandRunner, new ContainerRunner(commandRunner, props, ToolProperties.defaults()), props, secrets),
                 (event, context, state, description) ->
-                        statuses.add(context + " " + state + " " + description));
+                        statuses.add(context + " " + state + " " + description), props, ToolProperties.defaults());
 
         handler.handle(new PushEvent(
                 Provider.GITHUB,

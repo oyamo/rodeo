@@ -18,7 +18,7 @@ public class GitHubSignatureVerifier {
     private final byte[] secret;
 
     public GitHubSignatureVerifier(GitHubWebhookProperties properties) {
-        this.secret = SecretBytes.required(properties.secret(), "GITHUB_WEBHOOK_SECRET");
+        this.secret = SecretBytes.required(properties.secret(), "github.webhook.secret");
     }
 
     public boolean isValid(byte[] payload, String signatureHeader) {

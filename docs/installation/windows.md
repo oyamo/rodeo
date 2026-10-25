@@ -12,24 +12,19 @@ winget install --id Apache.Maven -e
 winget install --id Git.Git -e
 ```
 
-Open a new PowerShell window so the updated `PATH` takes effect.
+Open a new PowerShell window once the installs finish.
 
-## Make `sh` available
+## Point rodeo at `sh` and Git
 
-rodeo runs stage commands with `sh`. Git for Windows provides `sh` in its `bin` folder, which is not on `PATH` by default. Add it to the machine `PATH`:
+rodeo runs stage commands with `sh`, and clones repositories with `git`. Git for Windows provides both under `C:\Program Files\Git\bin`. Put their full paths in the `[rodeo.tools]` section of the configuration file, not in the system `PATH`:
 
-```powershell
-[Environment]::SetEnvironmentVariable(
-    "Path",
-    [Environment]::GetEnvironmentVariable("Path", "Machine") + ";C:\Program Files\Git\bin",
-    "Machine")
+```toml
+[rodeo.tools]
+shell = "C:/Program Files/Git/bin/sh.exe"
+git = "C:/Program Files/Git/cmd/git.exe"
 ```
 
-Open a new PowerShell window and check:
-
-```powershell
-sh -c "echo ok"
-```
+See [Configuration](../configuration.md#rodeotools).
 
 ## Build the jar
 
@@ -47,12 +42,11 @@ The jar is written to `target\rodeo-0.1.0-SNAPSHOT.jar`.
 java -version
 mvn -version
 git --version
-sh -c "echo ok"
 ```
 
-Each command should print a version or `ok`. Java must be version 21 or later.
+Each command should print a version. Java must be version 21 or later.
 
 ## Next steps
 
-- [Configuration](../configuration.md): the variables rodeo needs before it starts
+- [Configuration](../configuration.md): the configuration file rodeo reads at startup
 - [Running rodeo](../running.md): start rodeo and connect repositories

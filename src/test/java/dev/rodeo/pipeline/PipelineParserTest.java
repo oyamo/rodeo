@@ -4,13 +4,15 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import dev.rodeo.config.ExecProperties;
+import dev.rodeo.config.SecretsProperties;
+import java.util.Map;
 import java.time.Duration;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 
 class PipelineParserTest {
 
-    private final PipelineParser parser = new PipelineParser(new ExecProperties(4, List.of("DEPLOY_TOKEN")));
+    private final PipelineParser parser = new PipelineParser(new ExecProperties(4, true, "1", "1g", "/usr/local/bin:/usr/bin:/bin", "/tmp"), new SecretsProperties(Map.of("DEPLOY_TOKEN", "test-token")));
 
     @Test
     void parsesPipelinesAndDefaultsToSequentialStages() {

@@ -1,135 +1,113 @@
 # Configuration
 
-rodeo is configured through environment variables. It reads no configuration file on the server.
+rodeo reads all of its configuration from one TOML file, named when rodeo starts.
+
+## Starting rodeo with a configuration file
+
+```bash
+java -jar rodeo.jar --rodeo.config=/etc/rodeo/config.toml
+```
+
+If the argument is missing, rodeo cannot authenticate webhooks and refuses to start. If the file does not exist, rodeo stops with `config file not found`.
+
+## The file
+
+```toml
+[server]
+port = 8080
+
+[github.webhook]
+secret = "replace-with-a-long-random-string"
+
+[gitlab.webhook]
+secret = "replace-with-another-long-random-string"
+
+[rodeo.status]
+github-token = "github_pat_..."
+github-api-url = "https://api.github.com"
+
+[rodeo.exec]
+max-parallel-stages = 4
+allow-host-execution = false
+stage-cpus = "1"
+stage-memory = "1g"
+path = "/usr/local/bin:/usr/bin:/bin"
+home = "/var/lib/rodeo"
+
+[rodeo.tools]
+shell = "/bin/sh"
+docker = "/usr/bin/docker"
+git = "/usr/bin/git"
+
+[rodeo.secrets]
+DEPLOY_TOKEN = "..."
+REGISTRY_PASSWORD = "..."
+```
 
 ## Reference
 
-### Webhook authentication
+### `[server]`
 
-| Variable | Required | Default | Description |
-|---|---|---|---|
-| `GITHUB_WEBHOOK_SECRET` | yes | none | Secret for GitHub webhooks. Used to verify the `X-Hub-Signature-256` header. |
-| `GITLAB_WEBHOOK_SECRET` | yes | none | Secret token for GitLab webhooks. Compared with the `X-Gitlab-Token` header. |
-
-rodeo does not start unless both are set. Use a different value for each provider.
-
-### HTTP
-
-| Variable | Default | Description |
+| Key | Default | Description |
 |---|---|---|
-| `PORT` | `8080` | Port the HTTP server listens on |
+| `port` | `8080` | Port the HTTP server listens on |
 
-### Commit statuses
+### `[github.webhook]` and `[gitlab.webhook]`
 
-| Variable | Required | Default | Description |
-|---|---|---|---|
-| `GITHUB_STATUS_TOKEN` | no | empty | Token that lets rodeo post commit statuses to GitHub. Without it, no status is posted. |
-| `GITHUB_API_URL` | no | `https://api.github.com` | GitHub API base URL, for GitHub Enterprise Server |
-
-The token is read by rodeo itself. It is never given to stage commands, so it does not need to be listed in `RODEO_ALLOWED_SECRETS`.
-
-Create a fine-grained personal access token with the **Commit statuses** permission set to **Read and write**, and access to the repositories you want to report on. See [Commit status reporting](commit-status.md).
-
-### Pipeline execution
-
-| Variable | Default | Description |
+| Key | Required | Description |
 |---|---|---|
-| `RODEO_MAX_PARALLEL_STAGES` | `4` | Maximum number of stages that run at the same time across all pipelines and runs |
-| `RODEO_ALLOWED_SECRETS` | empty | Comma-separated names of server secrets that `rodeo.toml` may request, for example `DEPLOY_TOKEN,REGISTRY_PASSWORD` |
+| `secret` | yes | The secret configured on the provider's webhook. GitHub uses it to verify the `X-Hub-Signature-256` signature. GitLab sends it in `X-Gitlab-Token`. Use at least 32 random bytes. |
 
-A stage that lists a secret not in `RODEO_ALLOWED_SECRETS` is rejected before the run starts. The value of each allowed secret is read from the environment of the rodeo process and given only to the stages that request it.
+rodeo does not start unless both secrets are set. Use a different value for each provider.
 
-```text
-RODEO_ALLOWED_SECRETS=DEPLOY_TOKEN,REGISTRY_PASSWORD
-```
+### `[rodeo.status]`
 
-## Generating secrets
+| Key | Default | Description |
+|---|---|---|
+| `github-token` | none | Token that lets rodeo post commit statuses. Without it, no status is posted. See [Commit status reporting](commit-status.md). |
+| `github-api-url` | `https://api.github.com` | GitHub API base URL, for GitHub Enterprise Server |
 
-Use at least 32 random bytes:
+The token is read by rodeo itself. Stage commands never receive it.
 
-```bash
-openssl rand -hex 32
-```
+### `[rodeo.exec]`
 
-Enter the same value in the matching webhook settings. See [Running rodeo](running.md#connect-a-repository).
+| Key | Default | Description |
+|---|---|---|
+| `max-parallel-stages` | `4` | Maximum number of stages that run at the same time within a run |
+| `allow-host-execution` | `false` | Whether stages with no image may run directly on the server. When `false`, such stages are rejected. See [Where a stage runs](rodeo-toml/execution.md#where-a-stage-runs). |
+| `stage-cpus` | `"1"` | CPU limit for each stage container |
+| `stage-memory` | `"1g"` | Memory limit for each stage container, such as `512m` or `2g` |
+| `path` | `/usr/local/bin:/usr/bin:/bin` | `PATH` given to commands that run on the server, and to the Docker client |
+| `home` | `/var/lib/rodeo` | `HOME` given to commands that run on the server, and to the Docker client |
 
-## Setting variables
+### `[rodeo.tools]`
 
-Variables are read at startup. After a change, restart rodeo.
+| Key | Default | Description |
+|---|---|---|
+| `shell` | `sh` | Shell that runs stage commands |
+| `docker` | `docker` | Docker client used for container stages |
+| `git` | `git` | Git executable used to clone repositories |
 
-### Docker
+The defaults are bare names, which the operating system resolves through the `PATH` of the rodeo process. For a fully explicit setup, give absolute paths, as in the example above.
 
-Create `rodeo.env` next to the place you run `docker run` and restrict its permissions:
+### `[rodeo.secrets]`
 
-```bash
-cat > rodeo.env <<'EOF'
-GITHUB_WEBHOOK_SECRET=replace-with-a-long-random-string
-GITLAB_WEBHOOK_SECRET=replace-with-another-long-random-string
-EOF
-chmod 600 rodeo.env
-```
+Each key is the name of a secret, and its value is the secret. A stage can use a secret only by listing the name in its `secrets` option. A name that is not defined here is rejected when the file is parsed, before any stage starts. See [Environment and secrets](rodeo-toml/environment-and-secrets.md#secrets).
 
-Pass it with `--env-file rodeo.env` when you start the container.
+Secret values are given to the stages that request them, and they are never written to the log by rodeo.
 
-### Linux and macOS (systemd)
+## Keeping the file safe
 
-Store the variables in a file that only root and the `rodeo` group can read:
+The file contains secrets, so restrict who can read it:
 
 ```bash
 sudo mkdir -p /etc/rodeo
-sudo tee /etc/rodeo/rodeo.env >/dev/null <<'EOF'
-GITHUB_WEBHOOK_SECRET=replace-with-a-long-random-string
-GITLAB_WEBHOOK_SECRET=replace-with-another-long-random-string
-EOF
-sudo chown root:rodeo /etc/rodeo/rodeo.env
-sudo chmod 640 /etc/rodeo/rodeo.env
+sudo chown root:rodeo /etc/rodeo/config.toml
+sudo chmod 640 /etc/rodeo/config.toml
 ```
 
-The service unit loads this file with `EnvironmentFile=`. See [Running rodeo](running.md#linux-and-macos-systemd).
+The rodeo service user must be able to read it, and nobody else should.
 
-### Windows
+## Rotating a secret
 
-Set machine-level variables. Open a new PowerShell window after you set them:
-
-```powershell
-[Environment]::SetEnvironmentVariable("GITHUB_WEBHOOK_SECRET", "replace-with-a-long-random-string", "Machine")
-[Environment]::SetEnvironmentVariable("GITLAB_WEBHOOK_SECRET", "replace-with-another-long-random-string", "Machine")
-```
-
-### Terminal
-
-For a local test, set the variables in the current shell:
-
-```bash
-export GITHUB_WEBHOOK_SECRET=...      # Bash
-```
-
-```powershell
-$env:GITHUB_WEBHOOK_SECRET = "..."    # PowerShell
-```
-
-When you rotate a webhook secret, update the variable, restart rodeo, and then update the webhook in the provider. Deliveries sent between the two steps are rejected with `401`.
-
-## Logging
-
-rodeo writes logs to standard output, which the service manager or container runtime captures. The default format is:
-
-```text
-HH:mm:ss.SSS LEVEL message
-```
-
-Log levels are set to `INFO` for `dev.rodeo`. Output format and the meaning of each message are described in [Logs](logs.md).
-
-To change verbosity, set the level for the package in `application.yml` or pass a Spring Boot argument, for example `--logging.level.dev.rodeo=DEBUG`.
-
-## Example
-
-A production environment file:
-
-```text
-GITHUB_WEBHOOK_SECRET=...
-GITLAB_WEBHOOK_SECRET=...
-PORT=8080
-RODEO_MAX_PARALLEL_STAGES=6
-RODEO_ALLOWED_SECRETS=DEPLOY_TOKEN
-```
+Change the value in the file, restart rodeo, and update the matching webhook in the provider. Deliveries sent between the two steps are rejected with `401`.

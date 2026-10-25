@@ -31,16 +31,17 @@ Pushes to a branch that no pipeline triggers, and repositories without a `rodeo.
 1. Create a fine-grained personal access token at **GitHub → Settings → Developer settings → Personal access tokens → Fine-grained tokens**.
 2. Under **Repository access**, select the repositories rodeo should report on.
 3. Under **Permissions**, set **Commit statuses** to **Read and write**.
-4. Set the token as `GITHUB_STATUS_TOKEN` on the rodeo server, and restart rodeo.
+4. Set the token as `github-token` under `[rodeo.status]` in the server's configuration file, and restart rodeo.
 
 ```text
-GITHUB_STATUS_TOKEN=github_pat_...
+[rodeo.status]
+github-token = "github_pat_..."
 ```
 
 Without the token, rodeo runs as before and posts nothing. The startup log says so:
 
 ```text
-GitHub commit statuses are disabled; set GITHUB_STATUS_TOKEN to enable them
+GitHub commit statuses are disabled; set rodeo.status.github-token to enable them
 ```
 
 ## Requiring a check before merge

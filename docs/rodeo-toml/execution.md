@@ -2,6 +2,82 @@
 
 These stage options control how a stage runs: where, for how long, how many attempts, and what happens after a failure.
 
+## Where a stage runs
+
+Every stage runs in one of two places.
+
+| Place | Selected when | What it means |
+|---|---|---|
+| A container | The stage, its pipeline, or the top level sets `image` | Each command runs in a new container from that image, which is removed when the command finishes. |
+| The server | No image is set, and the server allows host execution | Each command runs directly on the server, as the rodeo service user, with access to the host's files. |
+
+If no image applies and the server does not allow host execution, the file is rejected. See [Validation and errors](validation.md#has-no-image-and-host-execution-is-disabled).
+
+### Images
+
+Set `image` at the top level, in a pipeline, or in a stage. The most specific value wins.
+
+```toml
+on = ["main"]
+image = "maven:3.9-eclipse-temurin-21"
+
+[api]
+build = "mvn -B package"
+
+[web]
+image = "node:22"
+build = "npm ci && npm run build"
+```
+
+The image must provide `sh`, because commands run as `sh -c`. Every tool a command uses must be installed in the image.
+
+### What a container gets
+
+| Property | Value |
+|---|---|
+| Filesystem | Only the run's checkout, mounted at `/work`. Files outside it are not visible. |
+| Working directory | `/work`, or `/work/<dir>` when `dir` is set |
+| Network | None, unless the stage sets `network = true` |
+| CPU and memory | Set by the server: `stage-cpus` and `stage-memory` under `[rodeo.exec]` |
+| Process count | At most 512 |
+| Linux capabilities | All dropped, and privilege escalation is blocked |
+| User | The same user ID as the rodeo service, so files written to `/work` stay owned by it |
+| Lifetime | One command. The container is removed afterward, and nothing carries over except files in `/work`. |
+| Secrets | Passed by name. Their values are supplied through the Docker client's environment, not on the command line. |
+
+### Network access
+
+Containers have no network by default. A stage that downloads dependencies or calls a deployment API must ask for it:
+
+```toml
+[web]
+image = "node:22"
+build = { run = "npm ci", network = true }
+```
+
+`network` needs an image. A stage that runs on the server already has the server's network.
+
+### Each command is a new container
+
+A stage with several commands starts one container per command. State kept in `/work` persists between them. State kept anywhere else does not. Put dependencies and build output under the checkout, and write nothing you need to the image's own filesystem.
+
+### Running on the server
+
+A stage with no image runs on the server. This is powerful and is not isolated, so the server operator must allow it with `allow-host-execution = true` under `[rodeo.exec]`. Use it only for work that must touch the server itself, such as restarting a systemd service. See [Configuration](../configuration.md#rodeoexec).
+
+A stage in a pipeline that sets an image can still opt out with `host = true`:
+
+```toml
+on = ["main"]
+image = "alpine:3.20"
+
+[app]
+build  = "make"
+deploy = { run = "systemctl restart app", host = true, needs = ["build"] }
+```
+
+`build` runs in a container, and `deploy` runs on the server.
+
 ## Working directory: `dir`
 
 By default a stage runs in the repository root. `dir` changes that to a subdirectory.
@@ -75,7 +151,7 @@ Use `on_fail` for cleanup or for undoing partial work. It does not change the st
 
 ## Parallelism
 
-Stages that do not depend on each other run in parallel. The server limits how many run at once with `RODEO_MAX_PARALLEL_STAGES`, which defaults to 4. Runs are processed one at a time, so the limit applies to the stages of the current run. See [Configuration](../configuration.md#pipeline-execution).
+Stages that do not depend on each other run in parallel. The server limits how many run at once with `max-parallel-stages` under `[rodeo.exec]`, which defaults to 4. Runs are processed one at a time, so the limit applies to the stages of the current run. See [Configuration](../configuration.md#rodeoexec).
 
 ## Summary of execution options
 

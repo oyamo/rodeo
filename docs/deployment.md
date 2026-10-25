@@ -165,7 +165,6 @@ The previous jar is kept for one deploy. A second rollback needs a deploy of an 
 | `git clone` fails | The repository is private, or the branch does not exist. |
 | A stage shows `FAILED` with `exited with` | Read the lines above that stage's `FAILED` line. |
 | `sudo: a password is required` | The sudoers rule is missing or names a different path to `systemctl`. Check `which systemctl`. |
-| A stage shows `FAILED` with `secret ... is not set` | The server does not have that variable. Set it, then restart rodeo. |
 
 ## Limits of this setup
 

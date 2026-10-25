@@ -29,11 +29,9 @@ Install Java 21, Maven, and Git.
 
     ```bash
     brew install openjdk@21 maven git
-    export JAVA_HOME="$(brew --prefix openjdk@21)/libexec/openjdk.jdk/Contents/Home"
-    export PATH="$JAVA_HOME/bin:$PATH"
     ```
 
-    Add the two `export` lines to your shell profile to keep them.
+    Java 21 is installed under `$(brew --prefix openjdk@21)`. Run the build with that JDK, and point `[rodeo.tools]` at Git with its full path if you need to.
 
 ## Build the jar
 
@@ -66,5 +64,5 @@ Each command should print a version. Java must be version 21 or later.
 
 ## Next steps
 
-- [Configuration](../configuration.md): the variables rodeo needs before it starts
+- [Configuration](../configuration.md): the configuration file rodeo reads at startup
 - [Running rodeo](../running.md): run rodeo as a service and connect repositories

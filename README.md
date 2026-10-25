@@ -1,6 +1,6 @@
 # rodeo
 
-Push-triggered command runner for Git repositories. On a push to a configured branch, rodeo clones the branch and runs the commands declared in the repository's `rodeo.toml`, in order, on the host it runs on.
+Push-triggered pipeline runner for Git repositories. On a push to a configured branch, rodeo clones the branch and runs the stages declared in the repository's `rodeo.toml`. Each stage runs in a container, with no network and no access to the server unless the stage asks for it.
 
 ![Java](https://img.shields.io/badge/language-Java%2021-orange)
 ![Coverage](https://img.shields.io/badge/coverage-89%25-brightgreen)
@@ -25,28 +25,26 @@ Pushes to any branch not listed in `branches`, and tag pushes, are ignored.
 ## Quick start
 
 ```bash
-export GITHUB_WEBHOOK_SECRET='...'
-export GITLAB_WEBHOOK_SECRET='...'
 mvn -B package
-java -jar target/rodeo-0.1.0-SNAPSHOT.jar
+java -jar target/rodeo-0.1.0-SNAPSHOT.jar --rodeo.config=/etc/rodeo/config.toml
 ```
 
 Or with Docker:
 
 ```bash
 docker build -t rodeo .
-docker run -d -p 8080:8080 --env-file rodeo.env rodeo
+docker run -d -p 8080:8080 -v /etc/rodeo/config.toml:/etc/rodeo/config.toml:ro rodeo
 ```
 
-Both secrets are required; the process exits at startup if either is unset.
+Both webhook secrets are required. rodeo reads all configuration from the TOML file named with `--rodeo.config`, and exits at startup if a required value is missing.
 
 ## Configuration
 
 | Variable | Required | Default | Purpose |
 |---|---|---|---|
-| `GITHUB_WEBHOOK_SECRET` | yes | — | Secret for GitHub push webhooks |
-| `GITLAB_WEBHOOK_SECRET` | yes | — | Secret token for GitLab push webhooks |
-| `PORT` | no | `8080` | HTTP listen port |
+| `[github.webhook] secret` | yes | — | Secret for GitHub push webhooks |
+| `[gitlab.webhook] secret` | yes | — | Secret token for GitLab push webhooks |
+| `[server] port` | no | `8080` | HTTP listen port |
 
 Webhook endpoints: `POST /webhooks/github` and `POST /webhooks/gitlab`. Serve them over HTTPS behind a reverse proxy.
 
@@ -61,22 +59,24 @@ Execution:
 
 - Shallow clone: `git clone --depth 1 --branch <branch>` into a fresh temp directory, deleted after the run.
 - Timeouts: 5 minutes for the clone, 10 minutes per command.
-- Environment: cleared, then `PATH` and `HOME` restored. Server secrets are not visible to commands.
+- Commands run with a cleared set of variables. Only `PATH` and `HOME` from `[rodeo.exec]` are passed, plus the stage's own variables and the secrets it requests.
 - Concurrency: one run at a time, FIFO, on a single worker thread.
 - Failures are logged. Nothing is retried by rodeo.
 
 ## Security model
 
-rodeo executes repository-defined commands with the privileges of the service user. Anyone with push access to a listed branch can run arbitrary commands on the host. Treat `rodeo.toml` and the scripts it calls as production code, and restrict push access to the listed branches accordingly.
+Stages run in containers by default. Each command gets a new container with only the run's checkout mounted, no network unless the stage asks for one, fixed CPU and memory limits, all Linux capabilities dropped, and no access to the server's files. Secrets reach a stage only when the stage requests them and the server allows the name.
 
-There is no container or namespace isolation yet.
+A stage with no image runs directly on the server, and the server operator must allow that with `allow-host-execution = true` under `[rodeo.exec]`.
+
+The service account must be able to run containers, and membership of the `docker` group is equivalent to root. Prefer rootless Docker.
 
 ## Limitations
 
 - Public repositories only; the clone sends no credentials.
 - Single worker. Long-running commands delay every run queued behind them.
-- No run history. Output goes to stdout. GitHub commit statuses are reported when `GITHUB_STATUS_TOKEN` is set.
-- Requires `git` and `sh` on the host or in the container image.
+- No run history. Output goes to stdout. GitHub commit statuses are reported when `github-token` is set under `[rodeo.status]`.
+- Requires `git` on the server, and a container runtime for container stages.
 
 ## Build and test
 

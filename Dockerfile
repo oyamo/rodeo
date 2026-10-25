@@ -11,6 +11,6 @@ RUN apt-get update \
     && useradd --system --create-home --home-dir /home/rodeo rodeo
 COPY --from=build /build/target/rodeo-0.1.0-SNAPSHOT.jar /app/rodeo.jar
 USER rodeo
-ENV PORT=8080
 EXPOSE 8080
 ENTRYPOINT ["java", "-jar", "/app/rodeo.jar"]
+CMD ["--rodeo.config=/etc/rodeo/config.toml"]

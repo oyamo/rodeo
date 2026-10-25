@@ -17,7 +17,9 @@ public record StageSpec(
         String dir,
         Duration timeout,
         int retries,
-        boolean allowFailure) {
+        boolean allowFailure,
+        String image,
+        boolean network) {
 
     public String id() {
         return pipeline + "/" + name;

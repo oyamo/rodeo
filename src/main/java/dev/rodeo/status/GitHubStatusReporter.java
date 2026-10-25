@@ -35,7 +35,7 @@ public class GitHubStatusReporter implements StatusReporter {
         this.apiUrl = properties.githubApiUrl().replaceAll("/+$", "");
         this.objectMapper = objectMapper;
         if (token.isEmpty()) {
-            log.info("GitHub commit statuses are disabled; set GITHUB_STATUS_TOKEN to enable them");
+            log.info("GitHub commit statuses are disabled; set rodeo.status.github-token to enable them");
         }
     }
 

@@ -36,7 +36,7 @@ deploy = { run = "./scripts/deploy-backend.sh", needs = ["build"], secrets = ["D
 | Topic | Page |
 |---|---|
 | Installation | [Docker](installation/docker.md), [Linux and macOS](installation/linux.md), [Windows](installation/windows.md) |
-| Configuration | [Environment variables](configuration.md) |
+| Configuration | [Configuration file](configuration.md) |
 | Operations | [Running rodeo](running.md), [Logs](logs.md) |
 | Pipeline definition | [rodeo.toml reference](rodeo-toml/index.md), [Examples](examples.md) |
 | Guides | [Deploy on push](deployment.md) |
@@ -50,5 +50,5 @@ deploy = { run = "./scripts/deploy-backend.sh", needs = ["build"], secrets = ["D
 | `sh` | Running stage commands. On Windows, use Git Bash. |
 | A public HTTPS address | Receiving webhooks from GitHub or GitLab |
 
-!!! warning "Stage commands run on your server"
-    Commands in `rodeo.toml` run on the machine that runs rodeo, with that machine's permissions. Anyone who can push to a listed branch controls what runs. Enable only repositories you trust. See [Security](rodeo-toml/index.md#security).
+!!! warning "Containers need a container runtime"
+    Stages run in containers by default, and the rodeo service user must be able to run containers. Membership of the `docker` group is equivalent to root on the server, so prefer rootless Docker. Anyone who can push to a listed branch controls what runs in those containers. See [Security](rodeo-toml/index.md#security).

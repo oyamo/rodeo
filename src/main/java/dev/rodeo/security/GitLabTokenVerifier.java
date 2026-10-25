@@ -10,7 +10,7 @@ public class GitLabTokenVerifier {
     private final byte[] secret;
 
     public GitLabTokenVerifier(GitLabWebhookProperties properties) {
-        this.secret = SecretBytes.required(properties.secret(), "GITLAB_WEBHOOK_SECRET");
+        this.secret = SecretBytes.required(properties.secret(), "gitlab.webhook.secret");
     }
 
     public boolean isValid(String token) {

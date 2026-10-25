@@ -7,6 +7,7 @@ Every key rodeo reads from `rodeo.toml`, in one place. Each entry links to the p
 | Key | Type | Required | Default | Description |
 |---|---|---|---|---|
 | `on` | array of strings | no | none | Branches that trigger pipelines which do not set their own `on`. See [Triggers](pipelines-and-stages.md#triggers). |
+| `image` | string | no | none | Default container image for every pipeline. See [Images](execution.md#images). |
 | `<pipeline>` | table | yes, at least one | none | A pipeline. The table name is the pipeline name. See [Pipelines](pipelines-and-stages.md#pipelines). |
 
 Legacy keys are accepted for compatibility. See [Legacy format](#legacy-format).
@@ -18,6 +19,7 @@ Keys inside a pipeline table. Every other key is a stage.
 | Key | Type | Required | Default | Description |
 |---|---|---|---|---|
 | `on` | array of strings | no | the top-level `on` | Branches that trigger this pipeline |
+| `image` | string | no | the top-level `image` | Container image for every stage in the pipeline |
 | `env` | table of strings | no | none | Variables for every stage in the pipeline. See [Environment](environment-and-secrets.md#pipeline-and-stage-variables). |
 | `<stage>` | string, array, or table | yes, at least one | none | A stage. See [Stage forms](pipelines-and-stages.md#stages). |
 
@@ -41,11 +43,14 @@ Valid only inside a stage table. An unknown option is an error. See [Validation]
 | `when` | `"success"`, `"failure"` or `"always"` | `"success"` | When the stage runs. See [Conditions](dependencies-and-conditions.md#conditions). |
 | `dir` | string | repository root | Working directory, relative to the repository. See [Working directory](execution.md#working-directory-dir). |
 | `env` | table of strings | none | Variables for this stage, merged over the pipeline's `env`. See [Environment](environment-and-secrets.md#pipeline-and-stage-variables). |
-| `secrets` | array of strings | none | Server secrets to expose. Each name must be in `RODEO_ALLOWED_SECRETS`. See [Secrets](environment-and-secrets.md#secrets). |
+| `secrets` | array of strings | none | Server secrets to expose. Each name must be defined under `[rodeo.secrets]`. See [Secrets](environment-and-secrets.md#secrets). |
 | `timeout` | string | `"10m"` | Limit for each command: `s`, `m` or `h`, such as `"30s"`. See [Timeouts](execution.md#timeouts-timeout). |
 | `retries` | integer, 0 to 5 | `0` | Extra attempts after a failure. See [Retries](execution.md#retries-retries). |
 | `optional` | boolean | `false` | A failure does not fail the run. See [Optional stages](execution.md#optional-stages-optional). |
 | `on_fail` | string or array of strings | none | Commands run after the final failed attempt. See [Failure handling](execution.md#failure-handling-on_fail). |
+| `image` | string | the pipeline or top-level `image` | Container image the stage runs in. Overrides the defaults. See [Images](execution.md#images). |
+| `network` | boolean | `false` | Allows the container network. Needs an image. See [Network access](execution.md#network-access). |
+| `host` | boolean | `false` | Runs the stage on the server, even when the pipeline or top level sets an image. Needs `allow-host-execution = true` under `[rodeo.exec]`. Cannot be combined with `image`. See [Running on the server](execution.md#running-on-the-server). |
 
 ## Stage IDs
 
@@ -74,13 +79,13 @@ Names may contain letters, digits, `-` and `_`. A dot is reserved for cross-pipe
 | `FAILED` | A command exited non-zero or timed out, after the final attempt |
 | `SKIPPED` | The condition was not met, so the stage did not run |
 
-## Environment variables seen by commands
+## Variables seen by stage commands
 
 | Variable | Set by | Value |
 |---|---|---|
-| `PATH`, `HOME` | rodeo, from its own environment | Passed through |
+| `PATH`, `HOME` | rodeo, from `path` and `home` under `[rodeo.exec]` | Stages on the server only |
 | Pipeline and stage `env` keys | the file | As written |
-| Names in `secrets` | the server | Value from the server's environment |
+| Names in `secrets` | the server | Value from `[rodeo.secrets]` |
 | `RODEO_PIPELINE` | rodeo | Pipeline name |
 | `RODEO_STAGE` | rodeo | Stage name |
 | `RODEO_REPOSITORY` | rodeo | Repository full name |
@@ -93,8 +98,11 @@ Later rows take precedence over earlier ones when names collide.
 
 | Setting | Effect on `rodeo.toml` |
 |---|---|
-| `RODEO_ALLOWED_SECRETS` | Which names stages may request in `secrets` |
-| `RODEO_MAX_PARALLEL_STAGES` | How many stages run at once |
+| `[rodeo.secrets]` | Which names stages may request in `secrets` |
+| `max-parallel-stages` | How many stages run at once |
+| `allow-host-execution` | Whether stages with no image may run on the server. Default `false`. |
+| `stage-cpus` | CPU limit for each container. Default `1`. |
+| `stage-memory` | Memory limit for each container. Default `1g`. |
 
 See [Configuration](../configuration.md).
 
@@ -107,7 +115,7 @@ See [Configuration](../configuration.md).
 | Retries | 0 to 5 |
 | Retry delay | 10 seconds |
 | Label length | 1 to 60 characters |
-| Parallel stages | `RODEO_MAX_PARALLEL_STAGES`, default 4 |
+| Parallel stages | `max-parallel-stages`, default 4 |
 
 ## Legacy format
 

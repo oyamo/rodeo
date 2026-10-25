@@ -111,7 +111,9 @@ class RunEngineTest {
                 null,
                 Duration.ofMinutes(1),
                 0,
-                optional);
+                optional,
+                null,
+                false);
     }
 
     private static Status awaitPeer(CountDownLatch latch) {

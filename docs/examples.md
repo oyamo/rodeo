@@ -6,17 +6,20 @@ Five `rodeo.toml` files, ordered from simplest to most complex. Each one is a co
 |---|---|---|
 | 1 | [Run tests on every push](#1-run-tests-on-every-push) | A single stage written as a string |
 | 2 | [Build and deploy a service](#2-build-and-deploy-a-service) | Sequential stages, labels, timeouts, rollback |
-| 3 | [Staging and production from branches](#3-staging-and-production-from-branches) | Pipelines with their own branch triggers, environment variables |
+| 3 | [Staging and production from branches](#3-staging-and-production-from-branches) | Pipelines with their own branch triggers and stage variables |
 | 4 | [Frontend and backend in a monorepo](#4-frontend-and-backend-in-a-monorepo) | Concurrent pipelines, `dir`, cross-pipeline dependencies, secrets, failure notification |
 | 5 | [Multi-region rollout with gates](#5-multi-region-rollout-with-gates) | Shared build, staged regions, retries, `when`, cleanup |
 
-Before you use an example, check that the server allows every secret it names. Secrets must be listed in `RODEO_ALLOWED_SECRETS`. The examples in this page use `DEPLOY_TOKEN`, `REGISTRY_PASSWORD`, and `SLACK_TOKEN`.
+Before you use an example, check that the server's configuration defines every secret it names under `[rodeo.secrets]`. The examples in this page use `DEPLOY_TOKEN`, `REGISTRY_PASSWORD`, and `SLACK_TOKEN`.
 
 ```text
-RODEO_ALLOWED_SECRETS=DEPLOY_TOKEN,REGISTRY_PASSWORD,SLACK_TOKEN
+[rodeo.secrets]
+DEPLOY_TOKEN = "..."
+REGISTRY_PASSWORD = "..."
+SLACK_TOKEN = "..."
 ```
 
-The scripts referenced in the examples are assumed to exist in the repository, under `scripts/`.
+The scripts referenced in the examples are assumed to exist in the repository, under `scripts/`. Each script must find its tools in the stage's image. Stages that need the server itself are marked `host = true`, and they require `allow-host-execution = true` under `[rodeo.exec]`. Stages that talk to a network set `network = true`.
 
 ## 1. Run tests on every push
 
@@ -24,6 +27,7 @@ The smallest useful file. Every push to `main` runs the Maven test suite.
 
 ```toml
 on = ["main"]
+image = "maven:3.9-eclipse-temurin-21"
 
 [ci]
 test = "mvn -B test"
@@ -39,11 +43,12 @@ A Spring Boot service is built, tested, and deployed. If the deploy fails, a rol
 
 ```toml
 on = ["main"]
+image = "maven:3.9-eclipse-temurin-21"
 
 [app]
 build  = { run = "mvn -B -q package -DskipTests", label = "Build jar" }
 test   = { run = "mvn -B test", label = "Unit tests", needs = [] }
-deploy = { run = "./scripts/deploy.sh", label = "Deploy to production", needs = ["build", "test"], timeout = "5m", retries = 1, on_fail = "./scripts/rollback.sh" }
+deploy = { run = "./scripts/deploy.sh", label = "Deploy to production", host = true, needs = ["build", "test"], timeout = "5m", retries = 1, on_fail = "./scripts/rollback.sh" }
 ```
 
 **What happens:**
@@ -69,14 +74,16 @@ Two pipelines in one file, each triggered by a different branch. A push to `deve
 ```toml
 [staging]
 on = ["develop"]
-deploy = { run = "./scripts/deploy.sh", label = "Deploy staging", env = { ENVIRONMENT = "staging" } }
-smoke  = { run = "./scripts/smoke-test.sh https://staging.example.com", label = "Smoke test", retries = 2 }
+image = "alpine:3.20"
+deploy = { run = "./scripts/deploy.sh", label = "Deploy staging", network = true, env = { ENVIRONMENT = "staging" } }
+smoke  = { run = "./scripts/smoke-test.sh https://staging.example.com", label = "Smoke test", network = true, retries = 2 }
 
 [production]
 on = ["main"]
-build  = { run = "./scripts/build.sh", label = "Build release" }
-deploy = { run = "./scripts/deploy.sh", label = "Deploy production", needs = ["build"], env = { ENVIRONMENT = "production" }, secrets = ["DEPLOY_TOKEN"], on_fail = "./scripts/rollback.sh" }
-smoke  = { run = "./scripts/smoke-test.sh https://example.com", label = "Smoke test", retries = 3 }
+image = "alpine:3.20"
+build  = { run = "./scripts/build.sh", label = "Build release", network = true }
+deploy = { run = "./scripts/deploy.sh", label = "Deploy production", needs = ["build"], network = true, env = { ENVIRONMENT = "production" }, secrets = ["DEPLOY_TOKEN"], on_fail = "./scripts/rollback.sh" }
+smoke  = { run = "./scripts/smoke-test.sh https://example.com", label = "Smoke test", network = true, retries = 3 }
 ```
 
 **What happens:**
@@ -99,15 +106,17 @@ A repository holds an API in `services/api` and a web app in `apps/web`. Both ar
 on = ["main"]
 
 [backend]
+image = "maven:3.9-eclipse-temurin-21"
 build  = { run = "mvn -B -q package", dir = "services/api", label = "Build API" }
 test   = { run = "mvn -B verify", dir = "services/api", label = "Test API" }
-deploy = { run = "./scripts/deploy.sh api", label = "Deploy API", needs = ["build", "test"], secrets = ["DEPLOY_TOKEN"], retries = 2, timeout = "5m", on_fail = "./scripts/rollback.sh api" }
+deploy = { run = "./scripts/deploy.sh api", label = "Deploy API", network = true, needs = ["build", "test"], secrets = ["DEPLOY_TOKEN"], retries = 2, timeout = "5m", on_fail = "./scripts/rollback.sh api" }
 
 [frontend]
-build  = { run = ["npm ci", "npm run build"], dir = "apps/web", label = "Build web app" }
+image = "node:22"
+build  = { run = ["npm ci", "npm run build"], dir = "apps/web", label = "Build web app", network = true }
 test   = { run = "npm test", dir = "apps/web", label = "Test web app" }
-deploy = { run = "./scripts/deploy.sh web", dir = "apps/web", label = "Deploy web app", needs = ["test", "backend.deploy"] }
-notify = { run = "./scripts/notify.sh frontend-failed", label = "Alert the team", needs = ["deploy"], secrets = ["SLACK_TOKEN"], when = "failure" }
+deploy = { run = "./scripts/deploy.sh web", dir = "apps/web", label = "Deploy web app", network = true, needs = ["test", "backend.deploy"] }
+notify = { run = "./scripts/notify.sh frontend-failed", label = "Alert the team", needs = ["deploy"], network = true, secrets = ["SLACK_TOKEN"], when = "failure" }
 ```
 
 **What happens:**
@@ -140,20 +149,23 @@ A service is built once, scanned, and rolled out to two regions in sequence. The
 on = ["main"]
 
 [build]
-image   = { run = "./scripts/build-image.sh", label = "Build and push image", secrets = ["REGISTRY_PASSWORD"], timeout = "20m" }
-scan    = { run = "trivy image --exit-code 1 registry.example.com/app:$RODEO_COMMIT", label = "Scan image", needs = ["image"] }
-cleanup = { run = "docker image prune -f", label = "Remove local images", needs = ["image"], when = "always" }
+image   = { run = "./scripts/build-image.sh", label = "Build and push image", host = true, secrets = ["REGISTRY_PASSWORD"], timeout = "20m" }
+scan    = { run = "trivy image --exit-code 1 registry.example.com/app:$RODEO_COMMIT", label = "Scan image", host = true, needs = ["image"] }
+cleanup = { run = "docker image prune -f", label = "Remove local images", host = true, needs = ["image"], when = "always" }
 
 [eu]
-deploy = { run = "./scripts/rollout.sh eu-west", label = "Roll out to EU", needs = ["build.scan"], secrets = ["DEPLOY_TOKEN"], retries = 2, timeout = "10m", on_fail = "./scripts/rollback.sh eu-west" }
-smoke  = { run = "./scripts/smoke-test.sh https://eu.example.com", label = "Smoke test EU", retries = 3 }
+image = "alpine:3.20"
+deploy = { run = "./scripts/rollout.sh eu-west", label = "Roll out to EU", network = true, needs = ["build.scan"], secrets = ["DEPLOY_TOKEN"], retries = 2, timeout = "10m", on_fail = "./scripts/rollback.sh eu-west" }
+smoke  = { run = "./scripts/smoke-test.sh https://eu.example.com", label = "Smoke test EU", network = true, retries = 3 }
 
 [us]
-deploy = { run = "./scripts/rollout.sh us-east", label = "Roll out to US", needs = ["build.scan", "eu.smoke"], secrets = ["DEPLOY_TOKEN"], retries = 2, timeout = "10m", on_fail = "./scripts/rollback.sh us-east" }
-smoke  = { run = "./scripts/smoke-test.sh https://us.example.com", label = "Smoke test US", retries = 3 }
+image = "alpine:3.20"
+deploy = { run = "./scripts/rollout.sh us-east", label = "Roll out to US", network = true, needs = ["build.scan", "eu.smoke"], secrets = ["DEPLOY_TOKEN"], retries = 2, timeout = "10m", on_fail = "./scripts/rollback.sh us-east" }
+smoke  = { run = "./scripts/smoke-test.sh https://us.example.com", label = "Smoke test US", network = true, retries = 3 }
 
 [alerts]
-notify = { run = "./scripts/notify.sh release-failed", label = "Alert the release channel", needs = ["eu.deploy", "eu.smoke", "us.deploy", "us.smoke"], secrets = ["SLACK_TOKEN"], when = "failure" }
+image = "alpine:3.20"
+notify = { run = "./scripts/notify.sh release-failed", label = "Alert the release channel", network = true, needs = ["eu.deploy", "eu.smoke", "us.deploy", "us.smoke"], secrets = ["SLACK_TOKEN"], when = "failure" }
 ```
 
 **What happens:**

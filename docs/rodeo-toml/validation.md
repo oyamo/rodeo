@@ -237,6 +237,50 @@ A key that expects text received a different type.
 
 **Fix:** quote the value.
 
+## Execution target errors
+
+### has no image, and host execution is disabled
+
+```text
+app/deploy has no image, and host execution is disabled on this server; set image on the stage, its pipeline, or the top level
+```
+
+A stage has no image, and the server does not allow stages to run on the host.
+
+**Cause:** the file has no `image` at the top level, in its pipeline, or in the stage. This is the safe default.
+
+**Fix:** add an image. For example, `image = "alpine:3.20"` at the top level. If the stage really must run on the server, ask the server operator to set `allow-host-execution = true` under `[rodeo.exec]`.
+
+### sets both host and image
+
+```text
+app/deploy sets both host and image; choose one
+```
+
+A stage sets `host = true` and also `image`. The two choose different places to run.
+
+**Fix:** remove one of them.
+
+### sets network, which needs an image
+
+```text
+app/fetch sets network, which needs an image
+```
+
+A stage sets `network = true` but does not run in a container. Network access is a property of containers only.
+
+**Fix:** set an image, or remove `network`.
+
+### image must be a container image reference
+
+```text
+image must be a container image reference such as alpine:3.20
+```
+
+The `image` value is not a valid image name. Spaces, shell characters, and leading dashes are not allowed.
+
+**Fix:** write a name such as `alpine:3.20`, `node:22`, or `registry.example.com/team/app:1.4`.
+
 ## Secrets
 
 ### requests secret, which this server does not allow
@@ -245,11 +289,11 @@ A key that expects text received a different type.
 app/deploy requests secret ROOT_PASSWORD, which this server does not allow
 ```
 
-A stage asks for a secret that is not in the server's `RODEO_ALLOWED_SECRETS`. The whole file is rejected.
+A stage asks for a secret that the server's configuration does not define under `[rodeo.secrets]`. The whole file is rejected.
 
 **Cause:** either the repository asks for a secret it should not have, or the server allowlist is missing a name the team needs.
 
-**Fix:** if the request is correct, add the name to `RODEO_ALLOWED_SECRETS` and restart rodeo. If it is not, remove the name from the stage. See [Environment and secrets](environment-and-secrets.md#secrets).
+**Fix:** if the request is correct, define the name under `[rodeo.secrets]` and restart rodeo. If it is not, remove the name from the stage. See [Environment and secrets](environment-and-secrets.md#secrets).
 
 ## Dependency errors
 

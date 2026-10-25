@@ -36,27 +36,17 @@ other-stage = { run = "a command", needs = ["stage-name"] }
 
 ## Requirements
 
-Stage commands run on the server that runs rodeo. The server needs Git and `sh` on its `PATH`, plus every tool your stages call. In the Docker image, only Git and `sh` are included. See [Server requirements](#server-requirements) below.
-
-## Server requirements
-
-| Requirement | Why |
-|---|---|
-| Git | Cloning the repository |
-| `sh` | Running stage commands. On Windows, use Git Bash. |
-| Every tool your stages call | Such as `mvn`, `npm` or `docker`. They must be on the `PATH` of the rodeo process. |
-
-In the Docker image, extend the base image to add tools. See [Docker](../installation/docker.md#add-tools-for-stage-commands).
+rodeo needs Git on the server to clone repositories. Stages run in containers, so the server needs a container runtime, such as Docker, and the images your stages use. A stage that runs on the server needs the tools it calls on the server's `PATH`. See [Execution controls](execution.md#where-a-stage-runs).
 
 ## Security
 
-Stage commands run on the machine that runs rodeo, with that machine's permissions. Anyone who can push to a branch listed in `on` controls what runs on the server. Enable a repository only if you trust its contributors with that access.
+Every stage runs in a container by default, with no network, no access to the server's files, and fixed CPU and memory limits. A stage that runs on the server is possible only when the operator allows it. The complete list of guarantees is in [Execution controls](execution.md#what-a-container-gets).
 
-Three rules reduce the exposure:
+Three things still matter:
 
-- Secrets are never passed to a stage unless the stage asks for them with `secrets`, and the server allows that name. See [Environment and secrets](environment-and-secrets.md).
-- Only `PATH`, `HOME`, and the variables the file sets reach a command. The server's own environment is not inherited.
-- A file that names a secret the server does not allow is rejected before anything runs.
+- **Secrets** reach a stage only when the stage requests them and the server allows the name. See [Environment and secrets](environment-and-secrets.md).
+- **Container access is powerful.** The service user must be able to run containers. Membership of the `docker` group is equivalent to root on the server. Use rootless Docker, or a dedicated runner host, to avoid that.
+- **Anyone who can push to a branch in `on`** controls which commands run. Limit who can push, and review changes to `rodeo.toml` and the scripts it calls.
 
 ## Next steps
 

@@ -1,5 +1,7 @@
 package dev.rodeo.exec;
 
+import dev.rodeo.config.ExecProperties;
+import dev.rodeo.config.ToolProperties;
 import dev.rodeo.model.PushEvent;
 import dev.rodeo.pipeline.Elapsed;
 import dev.rodeo.pipeline.PipelineFile;
@@ -45,18 +47,24 @@ public class PushCommandsHandler implements PushEventHandler {
     private final PipelineParser parser;
     private final StageExecutor stageExecutor;
     private final StatusReporter statusReporter;
+    private final ExecProperties execProperties;
+    private final ToolProperties tools;
 
     public PushCommandsHandler(
             @Qualifier("pushExecutor") ExecutorService executor,
             @Qualifier("stagePool") ExecutorService stagePool,
             PipelineParser parser,
             StageExecutor stageExecutor,
-            StatusReporter statusReporter) {
+            StatusReporter statusReporter,
+            ExecProperties execProperties,
+            ToolProperties tools) {
         this.executor = executor;
         this.stagePool = stagePool;
         this.parser = parser;
         this.stageExecutor = stageExecutor;
         this.statusReporter = statusReporter;
+        this.execProperties = execProperties;
+        this.tools = tools;
     }
 
     @Override
@@ -150,9 +158,12 @@ public class PushCommandsHandler implements PushEventHandler {
 
     private void clone(PushEvent event, Path workspace) throws IOException, InterruptedException {
         ProcessBuilder builder = new ProcessBuilder(
-                "git", "clone", "--depth", "1", "--branch", event.branch(),
+                tools.git(), "clone", "--depth", "1", "--branch", event.branch(),
                 "--", event.cloneUrl(), workspace.toString())
                 .inheritIO();
+        builder.environment().clear();
+        builder.environment().put("PATH", execProperties.path());
+        builder.environment().put("HOME", execProperties.home());
         builder.environment().put("GIT_TERMINAL_PROMPT", "0");
 
         Process process = builder.start();

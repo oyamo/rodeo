@@ -50,5 +50,5 @@ Build the extended image under a new tag, and use that tag when you run the cont
 
 ## Next steps
 
-- [Configuration](../configuration.md): the variables rodeo needs before it starts
+- [Configuration](../configuration.md): the configuration file rodeo reads at startup
 - [Running rodeo](../running.md): start the container and connect repositories

@@ -1,5 +1,6 @@
 package dev.rodeo;
 
+import dev.rodeo.config.RodeoConfigFileListener;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.boot.context.properties.ConfigurationPropertiesScan;
@@ -8,6 +9,8 @@ import org.springframework.boot.context.properties.ConfigurationPropertiesScan;
 @ConfigurationPropertiesScan
 public class RodeoApplication {
     public static void main(String[] args) {
-        SpringApplication.run(RodeoApplication.class, args);
+        SpringApplication application = new SpringApplication(RodeoApplication.class);
+        application.addListeners(new RodeoConfigFileListener());
+        application.run(args);
     }
 }

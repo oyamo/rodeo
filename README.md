@@ -15,36 +15,34 @@ on = ["main"]
 [frontend]
 build = "npm ci && npm run build"
 deploy = {
-  run = "rsync -az dist/ deploy@web.example.com:/srv/web/",
+  run = "cp -r dist/. /usr/share/nginx/html/",
   needs = ["build"],
-  network = true,
+  host = true,
 }
 
 [payment-service]
 image = "maven:3.9-eclipse-temurin-21"
 build = [
-  "mvn -B -q clean",
+  "mvn -B clean",
   "mvn -B verify",
   "mvn -B -DskipTests package",
   "mkdir -p dist",
-  "cp target/*.jar dist/",
+  "cp target/payment-service-*.jar dist/",
 ]
 deploy = {
-  run = "helm upgrade --install payment ./chart",
+  teardown = "docker compose stop payment-service",
+  run = "docker compose up -d --build payment-service",
   needs = ["build"],
-  network = true,
+  host = true,
 }
 
 [auth-service]
 build = {
-  run = [
-    "docker build -t auth-service .",
-    "docker tag auth-service auth-service:latest",
-  ],
+  run = "docker compose build auth-service",
   host = true,
 }
 deploy = {
-  teardown = "docker compose down",
+  teardown = "docker compose stop auth-service",
   run = "docker compose up -d auth-service",
   needs = ["build"],
   host = true,

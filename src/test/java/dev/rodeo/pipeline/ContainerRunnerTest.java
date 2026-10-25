@@ -30,6 +30,11 @@ class ContainerRunnerTest {
     }
 
     @Test
+    void overridesTheImageEntrypointWithShell() {
+        assertThat(pairValue("--entrypoint")).isEqualTo("sh");
+    }
+
+    @Test
     void enforcesResourceLimits() {
         assertThat(pairValue("--cpus")).isEqualTo("1");
         assertThat(pairValue("--memory")).isEqualTo("1g");

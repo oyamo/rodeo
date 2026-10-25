@@ -394,6 +394,9 @@ public class PipelineParser {
         if (!table.contains("image")) {
             return fallback;
         }
+        if (table.isTable("image")) {
+            throw new PipelineException("'image' is a reserved key; name the pipeline something other than image");
+        }
         String image = table.getString("image");
         if (image == null || !IMAGE.matcher(image).matches()) {
             throw new PipelineException("image must be a container image reference such as alpine:3.20");

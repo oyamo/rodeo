@@ -55,7 +55,6 @@ public class ContainerRunner {
                 stage.dir(),
                 environment.keySet(),
                 ownerOf(workspace)));
-        argv.add("sh");
         argv.add("-c");
         argv.add(command);
 
@@ -87,6 +86,7 @@ public class ContainerRunner {
                 "--cpus", cpus,
                 "--memory", memory,
                 "--pids-limit", PIDS_LIMIT,
+                "--entrypoint", "sh",
                 "--cap-drop", "ALL",
                 "--security-opt", "no-new-privileges",
                 "--mount", "type=bind,source=" + workspace + ",target=" + WORKSPACE_MOUNT,

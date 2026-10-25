@@ -1,279 +1,227 @@
 # Examples
 
-Five `rodeo.toml` files, ordered from simplest to most complex. Each one is a complete file you can copy into a repository and adapt.
+Five real `rodeo.toml` files, from the simplest to the most involved. Each one is a complete file you can copy into a repository.
 
 | # | Scenario | Features shown |
 |---|---|---|
-| 1 | [Run tests on every push](#1-run-tests-on-every-push) | A single stage written as a string |
-| 2 | [Build and deploy a service](#2-build-and-deploy-a-service) | Sequential stages, labels, timeouts, rollback |
-| 3 | [Staging and production from branches](#3-staging-and-production-from-branches) | Pipelines with their own branch triggers and stage variables |
-| 4 | [Frontend and backend in a monorepo](#4-frontend-and-backend-in-a-monorepo) | Concurrent pipelines, `dir`, cross-pipeline dependencies, secrets, failure notification |
-| 5 | [Multi-region rollout with gates](#5-multi-region-rollout-with-gates) | Shared build, staged regions, retries, `when`, cleanup |
+| 1 | [Run a library's tests](#1-run-a-librarys-tests) | A single command in a container |
+| 2 | [Deploy a Spring Boot service to a server](#2-deploy-a-spring-boot-service-to-a-server) | Host stages, rollback with `on_fail` |
+| 3 | [Staging and production from branches](#3-staging-and-production-from-branches) | Pipelines with their own branches, `teardown` |
+| 4 | [Frontend and backend in one repository](#4-frontend-and-backend-in-one-repository) | Concurrent pipelines, cross-pipeline dependency, secrets, container images |
+| 5 | [Multi-region Kubernetes rollout](#5-multi-region-kubernetes-rollout) | Image pipeline, staged regions, alerts on failure |
 
-Before you use an example, check that the server's configuration defines every secret it names under `[rodeo.secrets]`. The examples in this page use `DEPLOY_TOKEN`, `REGISTRY_PASSWORD`, and `SLACK_TOKEN`.
+The server's configuration must define every secret an example names under `[rodeo.secrets]`. Stages that run on the server need `allow-host-execution = true`. Stages with no image use the server's `default-image`.
 
-```text
-[rodeo.secrets]
-DEPLOY_TOKEN = "..."
-REGISTRY_PASSWORD = "..."
-SLACK_TOKEN = "..."
-```
+## 1. Run a library's tests
 
-The commands in the examples call tools such as `npm`, `mvn`, `helm` and `docker`. The stage's image must provide the tools it calls. Stages that need the server itself are marked `host = true`, and they require `allow-host-execution = true` under `[rodeo.exec]`. Stages that talk to a network set `network = true`.
-
-## 1. Run tests on every push
-
-The smallest useful file. Every push to `main` runs the Maven test suite.
+Every push to `main` runs the Maven test suite in a Java 21 container.
 
 ```toml
 on = ["main"]
+
+[library]
 image = "maven:3.9-eclipse-temurin-21"
 
-[ci]
 test = "mvn -B test"
 ```
 
-**What happens:** rodeo clones `main`, runs `mvn -B test` in the repository root, and logs the result. A failing test fails the run.
+## 2. Deploy a Spring Boot service to a server
 
-**When to use it:** a quick safety net on a branch, before you add deployment.
-
-## 2. Build and deploy a service
-
-A Spring Boot service is built, tested, and deployed. If the deploy fails, a rollback script runs.
+The service runs as a systemd unit on the host. A push to `main` builds and tests it, installs the new jar, and restarts the unit. If a deploy command fails, the previous jar is restored.
 
 ```toml
 on = ["main"]
-image = "maven:3.9-eclipse-temurin-21"
 
-[app]
-build  = { run = "mvn -B -q package -DskipTests", label = "Build jar" }
-test   = { run = "mvn -B test", label = "Unit tests", needs = [] }
-deploy = {
-  run = "helm upgrade --install app ./chart",
-  label = "Deploy to production",
+[orders-api]
+build = {
+  run = "mvn -B -q package -DskipTests",
   host = true,
+}
+test = {
+  run = "mvn -B test",
+  needs = [],
+  host = true,
+}
+deploy = {
+  run = [
+    "cp -f /opt/orders-api/app.jar /opt/orders-api/app.jar.previous 2>/dev/null || true",
+    "install -m 644 target/orders-api-*.jar /opt/orders-api/app.jar",
+    "sudo systemctl restart orders-api",
+    "sleep 5",
+    "curl -fsS http://localhost:8080/health",
+  ],
   needs = ["build", "test"],
+  host = true,
   timeout = "5m",
-  retries = 1,
-  on_fail = "helm rollback app",
+  on_fail = [
+    "install -m 644 /opt/orders-api/app.jar.previous /opt/orders-api/app.jar",
+    "sudo systemctl restart orders-api",
+  ],
 }
 ```
 
-**What happens:**
-
-1. `build` and `test` start together. `needs = []` on `test` removes the default dependency on `build`.
-2. `deploy` waits for both. A failed build or test stops the deploy.
-3. If the deploy fails, it is retried once. If the retry fails too, the rollback command runs.
-
-**Log lines to expect:**
-
-```text
-14:02:11.530 INFO  [7c1d0e44 app/build] STARTED  Build jar
-14:02:11.531 INFO  [7c1d0e44 app/test] STARTED  Unit tests
-14:03:20.877 INFO  [7c1d0e44 app/deploy] STARTED  Deploy to production
-```
-
-**When to use it:** a single service with one environment.
+**Server requirements:** a `sudo` rule that lets the `rodeo` user restart `orders-api`, and `allow-host-execution = true`.
 
 ## 3. Staging and production from branches
 
-Two pipelines in one file, each triggered by a different branch. A push to `develop` deploys to staging. A push to `main` deploys to production. The two pipelines never run for the same push.
+Two pipelines in one file, each started by a different branch. Both run Docker Compose on the same host, with a separate Compose file for each environment.
 
 ```toml
 [staging]
 on = ["develop"]
-image = "alpine:3.20"
+
 deploy = {
-  run = "helm upgrade --install app ./chart",
-  label = "Deploy staging",
-  network = true,
-  env = { ENVIRONMENT = "staging" },
+  teardown = "docker compose -f compose.staging.yml down",
+  run = "docker compose -f compose.staging.yml up -d --build",
+  host = true,
 }
-smoke  = { run = "curl -fsS https://staging.example.com/health", label = "Smoke test", network = true, retries = 2 }
+smoke = {
+  run = "curl -fsS https://staging.acme.dev/health",
+  needs = ["deploy"],
+  network = true,
+  retries = 2,
+}
 
 [production]
 on = ["main"]
-image = "alpine:3.20"
-build  = { run = "mvn -B -q package", label = "Build release", network = true }
+
+build = {
+  run = "docker compose -f compose.prod.yml build",
+  host = true,
+}
 deploy = {
-  run = "helm upgrade --install app ./chart",
-  label = "Deploy production",
+  teardown = "docker compose -f compose.prod.yml down",
+  run = "docker compose -f compose.prod.yml up -d",
   needs = ["build"],
-  network = true,
-  env = { ENVIRONMENT = "production" },
-  secrets = ["DEPLOY_TOKEN"],
-  on_fail = "helm rollback app",
+  host = true,
 }
-smoke  = { run = "curl -fsS https://example.com/health", label = "Smoke test", network = true, retries = 3 }
-```
-
-**What happens:**
-
-- A push to `develop` runs only `staging`.
-- A push to `main` runs only `production`.
-- Inside `production`, `deploy` waits for `build`, and `smoke` waits for `deploy`, the default.
-
-**Things to note:**
-
-- The top-level `on` is absent, so each pipeline sets its own branches.
-- `ENVIRONMENT` is set per pipeline, so the same deploy script behaves differently in each environment.
-- `DEPLOY_TOKEN` is passed only to the production deploy. Staging does not receive it.
-
-## 4. Frontend and backend in a monorepo
-
-A repository holds an API in `services/api` and a web app in `apps/web`. Both are built, tested, and deployed. The web app deploys only after the API is live, because it calls the API. If the web deploy fails, the team is notified.
-
-```toml
-on = ["main"]
-
-[backend]
-image = "maven:3.9-eclipse-temurin-21"
-build  = { run = "mvn -B -q package", dir = "services/api", label = "Build API" }
-test   = { run = "mvn -B verify", dir = "services/api", label = "Test API" }
-deploy = {
-  run = "helm upgrade --install api ./chart",
-  label = "Deploy API",
-  network = true,
-  needs = ["build", "test"],
-  secrets = ["DEPLOY_TOKEN"],
-  retries = 2,
-  timeout = "5m",
-  on_fail = "helm rollback api",
-}
-
-[frontend]
-image = "node:22"
-build  = { run = ["npm ci", "npm run build"], dir = "apps/web", label = "Build web app", network = true }
-test   = { run = "npm test", dir = "apps/web", label = "Test web app" }
-deploy = {
-  run = "helm upgrade --install web ./chart",
-  dir = "apps/web",
-  label = "Deploy web app",
-  network = true,
-  needs = ["test", "backend.deploy"],
-}
-notify = {
-  run = "curl -fsS -X POST https://hooks.example.com/frontend-failed",
-  label = "Alert the team",
+smoke = {
+  run = "curl -fsS https://acme.dev/health",
   needs = ["deploy"],
   network = true,
-  secrets = ["SLACK_TOKEN"],
-  when = "failure",
+  retries = 3,
 }
-```
-
-**What happens:**
-
-1. `backend/build` and `frontend/build` start at the same time.
-2. Each pipeline runs its tests after its build, and the backend deploys after its tests.
-3. `frontend/deploy` waits for `frontend/test` and for `backend/deploy`. The frontend goes live only after the API is live.
-4. `frontend/notify` runs only when `frontend/deploy` fails. Otherwise it is skipped.
-
-**Log lines to expect:**
-
-```text
-14:02:12.020 INFO  [4b8a2f10 backend/build] STARTED  Build API
-14:02:12.021 INFO  [4b8a2f10 frontend/build] STARTED  Build web app
-...
-14:04:01.310 INFO  [4b8a2f10 frontend/deploy] STARTED  Deploy web app
 ```
 
 **Things to note:**
 
-- `dir` runs each command in the right subdirectory, so the two projects can share the repository without interfering.
-- `backend.deploy` in the `needs` list is the cross-pipeline dependency. The name uses a dot.
-- The notification uses `when = "failure"`. Its `needs` list names the stage that must have failed.
+- A push to `develop` runs only `staging`. A push to `main` runs only `production`.
+- `teardown` stops the running Compose project before the new one starts. Its failure is ignored, so the first deploy works when nothing is running.
 
-## 5. Multi-region rollout with gates
+## 4. Frontend and backend in one repository
 
-A service is built once, scanned, and rolled out to two regions in sequence. The US region deploys only after the EU region passes its smoke test. Any failure notifies the team, and the build artifacts are cleaned up in every case.
+A React app in `web/` is copied into the nginx folder on the host. A Spring Boot API in `api/` runs on the host with Docker Compose. The web deploy waits for the API, because the app calls it.
 
 ```toml
 on = ["main"]
 
-[build]
-image   = { run = "docker build -t registry.example.com/app:latest .", label = "Build and push image", host = true, secrets = ["REGISTRY_PASSWORD"], timeout = "20m" }
-scan    = { run = "trivy image --exit-code 1 registry.example.com/app:latest", label = "Scan image", host = true, needs = ["image"] }
-cleanup = {
-  run = "docker image prune -f",
-  label = "Remove local images",
+[web]
+build = {
+  run = "npm ci && npm run build",
+  dir = "web",
+}
+deploy = {
+  run = "cp -r dist/. /usr/share/nginx/html/",
+  dir = "web",
+  needs = ["build", "api.deploy"],
   host = true,
-  needs = ["image"],
-  when = "always",
 }
 
-[eu]
-image = "alpine:3.20"
+[api]
+build = {
+  run = [
+    "mvn -B -q clean",
+    "mvn -B -DskipTests package",
+  ],
+  image = "maven:3.9-eclipse-temurin-21",
+  dir = "api",
+}
+test = {
+  run = "mvn -B verify",
+  image = "maven:3.9-eclipse-temurin-21",
+  dir = "api",
+}
 deploy = {
-  run = "helm upgrade --install app ./chart --kube-context eu-west",
-  label = "Roll out to EU",
-  network = true,
-  needs = ["build.scan"],
-  secrets = ["DEPLOY_TOKEN"],
-  retries = 2,
-  timeout = "10m",
-  on_fail = "helm rollback app --kube-context eu-west",
-}
-smoke  = { run = "curl -fsS https://eu.example.com/health", label = "Smoke test EU", network = true, retries = 3 }
-
-[us]
-image = "alpine:3.20"
-deploy = {
-  run = "helm upgrade --install app ./chart --kube-context us-east",
-  label = "Roll out to US",
-  network = true,
-  needs = ["build.scan", "eu.smoke"],
-  secrets = ["DEPLOY_TOKEN"],
-  retries = 2,
-  timeout = "10m",
-  on_fail = "helm rollback app --kube-context us-east",
-}
-smoke  = { run = "curl -fsS https://us.example.com/health", label = "Smoke test US", network = true, retries = 3 }
-
-[alerts]
-image = "alpine:3.20"
-notify = {
-  run = "curl -fsS -X POST https://hooks.example.com/release-failed",
-  label = "Alert the release channel",
-  network = true,
-  needs = ["eu.deploy", "eu.smoke", "us.deploy", "us.smoke"],
-  secrets = ["SLACK_TOKEN"],
-  when = "failure",
+  teardown = "docker compose -f api/compose.yml down",
+  run = "docker compose -f api/compose.yml up -d --build",
+  needs = ["build", "test"],
+  host = true,
 }
 ```
-
-**What happens:**
-
-1. `build/image` builds and pushes the container. `build/scan` checks it for vulnerabilities and fails the run if it finds any.
-2. `build/cleanup` runs whether or not the image step succeeded, so local images never accumulate.
-3. `eu/deploy` starts after the scan passes. `eu/smoke` checks the EU region.
-4. `us/deploy` waits for both the scan and the EU smoke test. A bad EU release never reaches the US.
-5. `alerts/notify` runs only if one of the deploy or smoke stages failed.
 
 **Things to note:**
 
-- Every stage that deploys has its own `on_fail` rollback, scoped to its region.
-- `trivy` must be installed on the server. Any scanner with a non-zero exit code on findings works the same way.
-- The `alerts` pipeline has no `on`, so it inherits `on = ["main"]` from the top of the file.
+- `dir` runs each stage in its own folder, so the two projects share the repository without interfering.
+- `api.deploy` in `needs` is a dependency on a stage in another pipeline.
+- The web deploy copies the built files into nginx's document root on the host, so it runs with `host = true`.
 
-**Log lines to expect when the EU smoke test fails:**
+## 5. Multi-region Kubernetes rollout
 
-```text
-14:20:45.002 INFO  [e91d3b77 eu/smoke] STARTED  Smoke test EU
-14:21:30.418 ERROR [e91d3b77 eu/smoke] FAILED in 45.4s: step 1/1 exited with 22
-14:21:30.421 INFO  [e91d3b77 alerts/notify] STARTED  Alert the release channel
+An API image is built on the host, scanned, and then rolled out to two regions in sequence. The US region starts only after the EU smoke test passes. If anything fails, a Slack alert is sent.
+
+```toml
+on = ["main"]
+
+[build-image]
+build = {
+  run = "docker build -t registry.acme.io/api:latest .",
+  host = true,
+}
+push = {
+  run = "docker push registry.acme.io/api:latest",
+  needs = ["build"],
+  host = true,
+}
+scan = {
+  run = "trivy image --exit-code 1 registry.acme.io/api:latest",
+  needs = ["push"],
+  host = true,
+}
+
+[eu-west]
+deploy = {
+  run = "kubectl --context eu-west set image deployment/api api=registry.acme.io/api:latest",
+  needs = ["build-image.scan"],
+  host = true,
+}
+smoke = {
+  run = "curl -fsS https://eu.api.acme.io/health",
+  needs = ["deploy"],
+  network = true,
+  retries = 3,
+}
+
+[us-east]
+deploy = {
+  run = "kubectl --context us-east set image deployment/api api=registry.acme.io/api:latest",
+  needs = ["build-image.scan", "eu-west.smoke"],
+  host = true,
+}
+smoke = {
+  run = "curl -fsS https://us.api.acme.io/health",
+  needs = ["deploy"],
+  network = true,
+  retries = 3,
+}
+
+[alerts]
+notify = {
+  run = "curl -fsS -X POST https://hooks.slack.com/services/T000/B000/REPLACE_ME",
+  when = "failure",
+  network = true,
+}
 ```
 
-`us/deploy` never starts, because `eu/smoke` did not succeed. The summary table marks it `SKIPPED`, and `alerts/notify` runs because one of its dependencies failed.
+**Server requirements:** Docker, `trivy`, and `kubectl`, with a kubeconfig that has the `eu-west` and `us-east` contexts. Stages that call them run on the host.
 
 ## Choosing an example
 
 | Your situation | Start from |
 |---|---|
 | Testing a repository before anything else | Example 1 |
-| One service, one environment | Example 2 |
+| One service on a server | Example 2 |
 | Separate staging and production branches | Example 3 |
 | Several projects in one repository | Example 4 |
 | Several regions or a formal release process | Example 5 |
 
-For every field, see the [rodeo.toml reference](rodeo-toml/index.md). For the log lines these examples produce, see [Logs](logs.md).
+For every field, see the [rodeo.toml reference](rodeo-toml/reference.md).

@@ -2,11 +2,16 @@ package dev.rodeo.exec;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import dev.rodeo.config.ExecProperties;
 import dev.rodeo.model.Provider;
 import dev.rodeo.model.PushEvent;
+import dev.rodeo.pipeline.CommandRunner;
+import dev.rodeo.pipeline.PipelineParser;
+import dev.rodeo.pipeline.StageExecutor;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
@@ -36,7 +41,6 @@ class PushCommandsHandlerTest {
                 branches = ["main"]
                 commands = ["echo done > '%s'"]
                 """.formatted(tempDir.resolve("marker.txt")));
-
         git(remote, "branch", "feature");
 
         runPush(remote, "feature");
@@ -56,9 +60,35 @@ class PushCommandsHandlerTest {
         assertThat(tempDir.resolve("marker.txt")).doesNotExist();
     }
 
+    @Test
+    void deploysFrontendAndBackendPipelinesWithCrossDependency() throws Exception {
+        Path backend = tempDir.resolve("backend.txt");
+        Path frontend = tempDir.resolve("frontend.txt");
+        Path frontendBuild = tempDir.resolve("frontend-build.txt");
+        Path remote = createRemote("""
+                on = ["main"]
+
+                [backend]
+                deploy = "echo backend > '%s'"
+
+                [frontend]
+                build = "echo built > '%s'"
+                deploy = { run = "test -f '%s' && test -f '%s' && echo frontend > '%s'", needs = ["build", "backend.deploy"] }
+                """.formatted(backend, frontendBuild, frontendBuild, backend, frontend));
+
+        runPush(remote, "main");
+
+        assertThat(frontend).exists();
+        assertThat(Files.readString(frontend)).isEqualTo("frontend\n");
+    }
+
     private void runPush(Path remote, String branch) throws InterruptedException {
         ExecutorService executor = Executors.newSingleThreadExecutor();
-        PushCommandsHandler handler = new PushCommandsHandler(executor, new CommandRunner());
+        ExecutorService stagePool = Executors.newFixedThreadPool(4);
+        PipelineParser parser = new PipelineParser(new ExecProperties(4, List.of("DEPLOY_TOKEN")));
+        PushCommandsHandler handler = new PushCommandsHandler(
+                executor, stagePool, parser, new StageExecutor(new CommandRunner()));
+
         handler.handle(new PushEvent(
                 Provider.GITHUB,
                 "octo/hello",
@@ -69,6 +99,7 @@ class PushCommandsHandlerTest {
                 1));
         executor.shutdown();
         executor.awaitTermination(60, TimeUnit.SECONDS);
+        stagePool.shutdown();
     }
 
     private Path createRemote(String rodeoToml) throws IOException, InterruptedException {

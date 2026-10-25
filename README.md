@@ -9,12 +9,15 @@ Push-triggered command runner for Git repositories. On a push to a configured br
 ## Example
 
 ```toml
-branches = ["main"]
+on = ["main"]
 
-commands = [
-  "mvn -B verify",
-  "./scripts/deploy.sh",
-]
+[frontend]
+build  = "npm ci && npm run build"
+deploy = { run = "./scripts/deploy-frontend.sh", needs = ["build", "backend.deploy"] }
+
+[backend]
+build  = "mvn -B verify"
+deploy = { run = "./scripts/deploy-backend.sh", needs = ["build"] }
 ```
 
 Pushes to any branch not listed in `branches`, and tag pushes, are ignored.

@@ -38,5 +38,8 @@ nav:
       - Windows: installation/windows.md
   - Configuration: configuration.md
   - Running rodeo: running.md
-  - rodeo.toml: rodeo-toml.md
-  - Deploy on push: deployment.md
+  - Logs: logs.md
+  - Examples: examples.md
+  - rodeo.toml reference: rodeo-toml.md
+  - Guides:
+      - Deploy on push: deployment.md

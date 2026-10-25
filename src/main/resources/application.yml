@@ -8,3 +8,14 @@ github:
 gitlab:
   webhook:
     secret: ${GITLAB_WEBHOOK_SECRET:}
+
+logging:
+  level:
+    dev.rodeo: INFO
+  pattern:
+    console: "%d{HH:mm:ss.SSS} %-5level %msg%n"
+
+rodeo:
+  exec:
+    max-parallel-stages: ${RODEO_MAX_PARALLEL_STAGES:4}
+    allowed-secrets: ${RODEO_ALLOWED_SECRETS:}

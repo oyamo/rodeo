@@ -53,11 +53,14 @@ To connect every repository in an organization, add the webhook at the organizat
 
 Push a commit, or use **Recent Deliveries** (GitHub) or **Test** (GitLab). A correctly signed push returns `202 Accepted`.
 
-rodeo logs one line per accepted push:
+rodeo logs each push as a run and prints a line for every stage it executes:
 
 ```text
-GITHUB push to octo/hello on branch main by octocat: 3 commit(s), head 1a2b3c4
+14:02:11.482 INFO  run 3f9c1a2e received GITHUB push to octo/hello on main
+14:02:11.520 INFO  run 3f9c1a2e no pipeline is triggered by branch main; nothing to run
 ```
+
+The full format is described in [Logs](logs.md).
 
 You can test without a provider by sending a signed request yourself:
 
@@ -88,5 +91,6 @@ curl -i -X POST https://rodeo.example.com/webhooks/github \
 |---|---|
 | Every delivery returns `401` | The secret in rodeo and the secret in the provider are different. Re-enter the value in the provider. |
 | rodeo does not start | One of the two secrets is not set. See [Configuration](configuration.md). |
-| Deliveries return `202` but nothing runs | The repository has no `rodeo.toml`, or the branch is not listed in it. See [rodeo.toml](rodeo-toml.md#logs). |
+| Deliveries return `202` but nothing runs | The repository has no `rodeo.toml`, or no pipeline lists the pushed branch in `on`. See [Logs](logs.md#run-lifecycle). |
+| A run shows `aborted` | The `rodeo.toml` file is invalid. The message names the problem. See [Validation](rodeo-toml.md#validation). |
 | Connection refused or timeout from the provider | The proxy is not reachable from the internet, or DNS does not point at the host. |

@@ -8,6 +8,7 @@ theme:
   favicon: assets/favicon.svg
   features:
     - navigation.sections
+    - navigation.expand
     - navigation.top
     - content.code.copy
     - search.suggest
@@ -37,22 +38,26 @@ markdown_extensions:
 
 nav:
   - Home: index.md
+  - Get started:
+      - Install:
+          - Docker: installation/docker.md
+          - Linux and macOS: installation/linux.md
+          - Windows: installation/windows.md
+      - Configure: configuration.md
+      - Run:
+          - Running rodeo: running.md
+          - Commit status: commit-status.md
   - rodeo.toml:
-      - Overview: rodeo-toml/index.md
-      - Pipelines and stages: rodeo-toml/pipelines-and-stages.md
-      - Dependencies and conditions: rodeo-toml/dependencies-and-conditions.md
-      - Execution controls: rodeo-toml/execution.md
-      - Environment and secrets: rodeo-toml/environment-and-secrets.md
-      - Validation and errors: rodeo-toml/validation.md
-      - Reference: rodeo-toml/reference.md
-  - Installation:
-      - Docker: installation/docker.md
-      - Linux and macOS: installation/linux.md
-      - Windows: installation/windows.md
-  - Configuration: configuration.md
-  - Running rodeo: running.md
-  - Logs: logs.md
-  - Commit status: commit-status.md
+      - Basics: rodeo-toml/index.md
+      - Stages:
+          - Pipelines and stages: rodeo-toml/pipelines-and-stages.md
+          - Dependencies and conditions: rodeo-toml/dependencies-and-conditions.md
+          - Execution controls: rodeo-toml/execution.md
+          - Environment and secrets: rodeo-toml/environment-and-secrets.md
+      - Reference:
+          - Validation and errors: rodeo-toml/validation.md
+          - Full reference: rodeo-toml/reference.md
   - Examples: examples.md
-  - Guides:
+  - Operations:
+      - Logs: logs.md
       - Deploy on push: deployment.md

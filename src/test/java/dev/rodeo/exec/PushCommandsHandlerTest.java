@@ -4,7 +4,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import dev.rodeo.config.ExecProperties;
 import dev.rodeo.config.GitProperties;
-import dev.rodeo.config.ToolProperties;
 import dev.rodeo.config.SecretsProperties;
 import dev.rodeo.model.Provider;
 import dev.rodeo.model.PushEvent;
@@ -124,18 +123,18 @@ class PushCommandsHandlerTest {
     private List<String> runPush(Path remote, String branch) throws InterruptedException {
         ExecutorService executor = Executors.newSingleThreadExecutor();
         ExecutorService stagePool = Executors.newFixedThreadPool(4);
-        ExecProperties props = new ExecProperties(4, true, "1", "1g", "/usr/local/bin:/usr/bin:/bin", "/tmp");
+        ExecProperties props = new ExecProperties(4, true, "1", "1g", null);
         SecretsProperties secrets = new SecretsProperties(Map.of("DEPLOY_TOKEN", "test-token"));
-        CommandRunner commandRunner = new CommandRunner(ToolProperties.defaults());
+        CommandRunner commandRunner = new CommandRunner();
         PipelineParser parser = new PipelineParser(props, secrets);
         List<String> statuses = new CopyOnWriteArrayList<>();
         PushCommandsHandler handler = new PushCommandsHandler(
                 executor,
                 stagePool,
                 parser,
-                new StageExecutor(commandRunner, new ContainerRunner(commandRunner, props, ToolProperties.defaults()), props, secrets),
+                new StageExecutor(commandRunner, new ContainerRunner(commandRunner, props), secrets),
                 (event, context, state, description) ->
-                        statuses.add(context + " " + state + " " + description), props, ToolProperties.defaults(), GitProperties.none());
+                        statuses.add(context + " " + state + " " + description), GitProperties.none());
 
         handler.handle(new PushEvent(
                 Provider.GITHUB,

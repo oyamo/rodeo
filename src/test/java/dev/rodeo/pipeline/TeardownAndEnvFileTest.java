@@ -4,7 +4,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import dev.rodeo.config.ExecProperties;
 import dev.rodeo.config.SecretsProperties;
-import dev.rodeo.config.ToolProperties;
 import dev.rodeo.model.Provider;
 import dev.rodeo.model.PushEvent;
 import java.nio.file.Files;
@@ -20,7 +19,7 @@ class TeardownAndEnvFileTest {
     @TempDir
     Path workspace;
 
-    private static final ExecProperties PROPS = new ExecProperties(4, true, "1", "1g", "/usr/bin:/bin", "/tmp");
+    private static final ExecProperties PROPS = new ExecProperties(4, true, "1", "1g", null);
 
     @Test
     void teardownRunsBeforeTheStageAndItsFailureIsIgnored() throws Exception {
@@ -67,11 +66,10 @@ class TeardownAndEnvFileTest {
     }
 
     private Status execute(StageSpec stage) {
-        CommandRunner runner = new CommandRunner(ToolProperties.defaults());
+        CommandRunner runner = new CommandRunner();
         StageExecutor executor = new StageExecutor(
                 runner,
-                new ContainerRunner(runner, PROPS, ToolProperties.defaults()),
-                PROPS,
+                new ContainerRunner(runner, PROPS),
                 new SecretsProperties(Map.of()));
         PushEvent event = new PushEvent(
                 Provider.GITHUB, "octo/hello", "https://github.com/octo/hello.git", "main", "abc1234", "octocat", 1);

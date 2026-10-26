@@ -58,7 +58,7 @@ deploy = {
 |---|---|
 | Java 21 or later | Running rodeo outside Docker |
 | Git | Cloning repositories |
-| `sh` | Running stage commands. On Windows, use Git Bash. |
+| A shell | Running stage commands: `sh` on Linux and macOS, PowerShell (`pwsh`) on Windows. Included in the container image. |
 | A public HTTPS address | Receiving webhooks from GitHub or GitLab |
 
 !!! warning "Containers need a container runtime"

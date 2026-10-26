@@ -27,17 +27,9 @@ github-token = "github_pat_..."
 github-api-url = "https://api.github.com"
 
 [rodeo.exec]
-max-parallel-stages = 4
 allow-host-execution = false
 stage-cpus = "1"
 stage-memory = "1g"
-path = "/usr/local/bin:/usr/bin:/bin"
-home = "/var/lib/rodeo"
-
-[rodeo.tools]
-shell = "/bin/sh"
-docker = "/usr/bin/docker"
-git = "/usr/bin/git"
 
 [rodeo.git]
 token = "github_pat_..."
@@ -76,23 +68,11 @@ The token is read by rodeo itself. Stage commands never receive it.
 
 | Key | Default | Description |
 |---|---|---|
-| `max-parallel-stages` | `4` | Maximum number of stages that run at the same time within a run |
+| `max-parallel-stages` | number of CPUs | Maximum number of stages that run at the same time within a run |
 | `allow-host-execution` | `false` | Whether stages with no image may run directly on the server. When `false`, such stages are rejected. See [Where a stage runs](rodeo-toml/execution.md#where-a-stage-runs). |
 | `stage-cpus` | `"1"` | CPU limit for each stage container |
 | `stage-memory` | `"1g"` | Memory limit for each stage container, such as `512m` or `2g` |
-| `path` | `/usr/local/bin:/usr/bin:/bin` | `PATH` given to commands that run on the server, and to the Docker client |
-| `home` | `/var/lib/rodeo` | `HOME` given to commands that run on the server, and to the Docker client |
 | `default-image` | none | Container image used by any stage that does not name one. Set it so pipeline files can omit `image`. |
-
-### `[rodeo.tools]`
-
-| Key | Default | Description |
-|---|---|---|
-| `shell` | `sh` | Shell that runs stage commands |
-| `docker` | `docker` | Docker client used for container stages |
-| `git` | `git` | Git executable used to clone repositories |
-
-The defaults are bare names, which the operating system resolves through the `PATH` of the rodeo process. For a fully explicit setup, give absolute paths, as in the example above.
 
 ### `[rodeo.git]`
 

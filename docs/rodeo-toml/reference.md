@@ -85,7 +85,7 @@ Names may contain letters, digits, `-` and `_`. A dot is reserved for cross-pipe
 
 | Variable | Set by | Value |
 |---|---|---|
-| `PATH`, `HOME` | rodeo, from `path` and `home` under `[rodeo.exec]` | Stages on the server only |
+| `PATH`, `HOME` | rodeo, detected from the platform | Stages on the server only |
 | Pipeline and stage `env` keys | the file | As written |
 | Names in `secrets` | the server | Value from `[rodeo.secrets]` |
 | `RODEO_PIPELINE` | rodeo | Pipeline name |
@@ -101,7 +101,7 @@ Later rows take precedence over earlier ones when names collide.
 | Setting | Effect on `rodeo.toml` |
 |---|---|
 | `[rodeo.secrets]` | Which names stages may request in `secrets` |
-| `max-parallel-stages` | How many stages run at once |
+| `max-parallel-stages` | How many stages run at once. Defaults to the number of CPUs. |
 | `allow-host-execution` | Whether stages with no image may run on the server. Default `false`. |
 | `stage-cpus` | CPU limit for each container. Default `1`. |
 | `stage-memory` | Memory limit for each container. Default `1g`. |
@@ -117,7 +117,7 @@ See [Configuration](../configuration.md).
 | Retries | 0 to 5 |
 | Retry delay | 10 seconds |
 | Label length | 1 to 60 characters |
-| Parallel stages | `max-parallel-stages`, default 4 |
+| Parallel stages | `max-parallel-stages`, default the number of CPUs |
 
 ## Legacy format
 

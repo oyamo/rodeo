@@ -1,6 +1,6 @@
 package dev.rodeo.pipeline;
 
-import dev.rodeo.config.ExecProperties;
+import dev.rodeo.config.Platform;
 import dev.rodeo.config.SecretsProperties;
 import dev.rodeo.model.PushEvent;
 import java.io.IOException;
@@ -24,17 +24,11 @@ public class StageExecutor {
 
     private final CommandRunner commandRunner;
     private final ContainerRunner containerRunner;
-    private final ExecProperties execProperties;
     private final SecretsProperties secrets;
 
-    public StageExecutor(
-            CommandRunner commandRunner,
-            ContainerRunner containerRunner,
-            ExecProperties execProperties,
-            SecretsProperties secrets) {
+    public StageExecutor(CommandRunner commandRunner, ContainerRunner containerRunner, SecretsProperties secrets) {
         this.commandRunner = commandRunner;
         this.containerRunner = containerRunner;
-        this.execProperties = execProperties;
         this.secrets = secrets;
     }
 
@@ -47,7 +41,7 @@ public class StageExecutor {
                 : context.workspace().resolve(stage.dir()).normalize();
         boolean container = stage.image() != null;
         try {
-            Map<String, String> environment = environment(stage, context, container, execProperties, secrets);
+            Map<String, String> environment = environment(stage, context, container, secrets);
             String containerName = "rodeo-" + context.runId() + "-" + stage.id().replace('/', '-')
                     + "-" + UUID.randomUUID().toString().substring(0, 6);
             Launcher launcher = container
@@ -125,12 +119,12 @@ public class StageExecutor {
             StageSpec stage,
             RunContext context,
             boolean container,
-            ExecProperties execProperties,
             SecretsProperties secrets) throws IOException {
         Map<String, String> environment = new HashMap<>();
         if (!container) {
-            environment.put("PATH", execProperties.path());
-            environment.put("HOME", execProperties.home());
+            environment.putAll(Platform.hostEnv());
+            environment.put("PATH", Platform.path());
+            environment.put("HOME", Platform.homeDirectory());
         }
         if (stage.envFile() != null) {
             environment.putAll(loadEnvFile(context.workspace().resolve(stage.envFile())));

@@ -1,7 +1,7 @@
 package dev.rodeo.pipeline;
 
 import dev.rodeo.config.ExecProperties;
-import dev.rodeo.config.ToolProperties;
+import dev.rodeo.config.Platform;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -28,12 +28,10 @@ public class ContainerRunner {
 
     private final CommandRunner commandRunner;
     private final ExecProperties properties;
-    private final ToolProperties tools;
 
-    public ContainerRunner(CommandRunner commandRunner, ExecProperties properties, ToolProperties tools) {
+    public ContainerRunner(CommandRunner commandRunner, ExecProperties properties) {
         this.commandRunner = commandRunner;
         this.properties = properties;
-        this.tools = tools;
     }
 
     public int execute(
@@ -45,7 +43,7 @@ public class ContainerRunner {
             String prefix,
             Duration timeout) throws IOException, InterruptedException {
         List<String> argv = new ArrayList<>(runArguments(
-                tools.docker(),
+                Platform.tool("docker"),
                 containerName,
                 stage.image(),
                 stage.network(),
@@ -59,8 +57,8 @@ public class ContainerRunner {
         argv.add(command);
 
         Map<String, String> processEnvironment = new HashMap<>();
-        processEnvironment.put("PATH", properties.path());
-        processEnvironment.put("HOME", properties.home());
+        processEnvironment.put("PATH", Platform.path());
+        processEnvironment.put("HOME", Platform.homeDirectory());
         processEnvironment.putAll(environment);
         return commandRunner.run(argv, workspace, processEnvironment, prefix, timeout,
                 () -> kill(containerName));
@@ -115,11 +113,11 @@ public class ContainerRunner {
 
     private void kill(String containerName) {
         try {
-            ProcessBuilder builder = new ProcessBuilder(tools.docker(), "kill", containerName)
+            ProcessBuilder builder = new ProcessBuilder(Platform.tool("docker"), "kill", containerName)
                     .redirectErrorStream(true);
             builder.environment().clear();
-            builder.environment().put("PATH", properties.path());
-            builder.environment().put("HOME", properties.home());
+            builder.environment().put("PATH", Platform.path());
+            builder.environment().put("HOME", Platform.homeDirectory());
             Process process = builder.start();
             process.getInputStream().readAllBytes();
             if (!process.waitFor(KILL_TIMEOUT.toSeconds(), TimeUnit.SECONDS)) {

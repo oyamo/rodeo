@@ -56,13 +56,7 @@ On macOS, run the jar directly, or register it with `launchd` with the same `--r
 
 ### Windows
 
-From the project folder:
-
-```powershell
-java -jar target\rodeo-0.1.0-SNAPSHOT.jar --rodeo.config=C:\rodeo\config.toml
-```
-
-To run rodeo in the background at startup, register it as a Windows service with a wrapper such as [NSSM](https://nssm.cc/). Point the service at `java` with the arguments `-jar C:\rodeo\rodeo-0.1.0-SNAPSHOT.jar --rodeo.config=C:\rodeo\config.toml`. The service account must be able to read the configuration file and must reach your repositories.
+Start rodeo from PowerShell as shown in [Install on Windows](installation/windows.md#run), or register it as a Windows service as shown in [Run as a service](installation/windows.md#run-as-a-service).
 
 ### Verify it is running
 

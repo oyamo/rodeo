@@ -9,26 +9,12 @@ public record ExecProperties(
         boolean allowHostExecution,
         String stageCpus,
         String stageMemory,
-        String path,
-        String home,
         String defaultImage) {
-
-    public ExecProperties(
-            int maxParallelStages,
-            boolean allowHostExecution,
-            String stageCpus,
-            String stageMemory,
-            String path,
-            String home) {
-        this(maxParallelStages, allowHostExecution, stageCpus, stageMemory, path, home, null);
-    }
 
     @ConstructorBinding
     public ExecProperties {
-        maxParallelStages = maxParallelStages > 0 ? maxParallelStages : 4;
+        maxParallelStages = maxParallelStages > 0 ? maxParallelStages : Runtime.getRuntime().availableProcessors();
         stageCpus = stageCpus == null || stageCpus.isBlank() ? "1" : stageCpus;
         stageMemory = stageMemory == null || stageMemory.isBlank() ? "1g" : stageMemory;
-        path = path == null || path.isBlank() ? "/usr/local/bin:/usr/bin:/bin" : path;
-        home = home == null || home.isBlank() ? "/var/lib/rodeo" : home;
     }
 }

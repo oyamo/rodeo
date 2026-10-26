@@ -1,8 +1,7 @@
 package dev.rodeo.exec;
 
-import dev.rodeo.config.ExecProperties;
 import dev.rodeo.config.GitProperties;
-import dev.rodeo.config.ToolProperties;
+import dev.rodeo.config.Platform;
 import dev.rodeo.model.PushEvent;
 import dev.rodeo.pipeline.Elapsed;
 import dev.rodeo.pipeline.PipelineFile;
@@ -49,8 +48,6 @@ public class PushCommandsHandler implements PushEventHandler {
     private final PipelineParser parser;
     private final StageExecutor stageExecutor;
     private final StatusReporter statusReporter;
-    private final ExecProperties execProperties;
-    private final ToolProperties tools;
     private final GitProperties git;
 
     public PushCommandsHandler(
@@ -59,16 +56,12 @@ public class PushCommandsHandler implements PushEventHandler {
             PipelineParser parser,
             StageExecutor stageExecutor,
             StatusReporter statusReporter,
-            ExecProperties execProperties,
-            ToolProperties tools,
             GitProperties git) {
         this.executor = executor;
         this.stagePool = stagePool;
         this.parser = parser;
         this.stageExecutor = stageExecutor;
         this.statusReporter = statusReporter;
-        this.execProperties = execProperties;
-        this.tools = tools;
         this.git = git;
     }
 
@@ -173,14 +166,14 @@ public class PushCommandsHandler implements PushEventHandler {
 
     private void clone(PushEvent event, Path workspace, Path credentials) throws IOException, InterruptedException {
         List<String> argv = new ArrayList<>();
-        argv.add(tools.git());
+        argv.add(Platform.tool("git"));
         argv.addAll(GitAccess.options(git, credentials));
         argv.addAll(List.of("clone", "--depth", "1", "--branch", event.branch(),
                 "--", GitAccess.cloneUrl(git, event.cloneUrl()), workspace.toString()));
         ProcessBuilder builder = new ProcessBuilder(argv).inheritIO();
         builder.environment().clear();
-        builder.environment().put("PATH", execProperties.path());
-        builder.environment().put("HOME", execProperties.home());
+        builder.environment().put("PATH", Platform.path());
+        builder.environment().put("HOME", Platform.homeDirectory());
         builder.environment().put("GIT_TERMINAL_PROMPT", "0");
 
         Process process = builder.start();

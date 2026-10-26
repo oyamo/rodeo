@@ -4,7 +4,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 import dev.rodeo.config.ExecProperties;
-import dev.rodeo.config.ToolProperties;
 import dev.rodeo.config.SecretsProperties;
 import dev.rodeo.model.Provider;
 import dev.rodeo.model.PushEvent;
@@ -71,10 +70,10 @@ class DockerIsolationTest {
     }
 
     private static Status execute(Path workspace, StageSpec stage) {
-        ExecProperties props = new ExecProperties(4, false, "1", "1g", "/usr/local/bin:/usr/bin:/bin", "/tmp");
-        CommandRunner runner = new CommandRunner(ToolProperties.defaults());
+        ExecProperties props = new ExecProperties(4, false, "1", "1g", null);
+        CommandRunner runner = new CommandRunner();
         StageExecutor executor = new StageExecutor(
-                runner, new ContainerRunner(runner, props, ToolProperties.defaults()), props, new SecretsProperties(Map.of()));
+                runner, new ContainerRunner(runner, props), new SecretsProperties(Map.of()));
         PushEvent event = new PushEvent(
                 Provider.GITHUB, "octo/hello", "https://github.com/octo/hello.git", "main", "abc1234", "octocat", 1);
         return executor.execute(stage, new RunContext("itest01", workspace, event));

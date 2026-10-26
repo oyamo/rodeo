@@ -31,7 +31,7 @@ Install Java 21, Maven, and Git.
     brew install openjdk@21 maven git
     ```
 
-    Java 21 is installed under `$(brew --prefix openjdk@21)`. Run the build with that JDK, and point `[rodeo.tools]` at Git with its full path if you need to.
+    Java 21 is installed under `$(brew --prefix openjdk@21)`. Run the build with that JDK. rodeo finds Git on its own.
 
 ## Build the jar
 

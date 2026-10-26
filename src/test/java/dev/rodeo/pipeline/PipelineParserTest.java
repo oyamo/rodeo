@@ -12,7 +12,7 @@ import org.junit.jupiter.api.Test;
 
 class PipelineParserTest {
 
-    private final PipelineParser parser = new PipelineParser(new ExecProperties(4, true, "1", "1g", "/usr/local/bin:/usr/bin:/bin", "/tmp"), new SecretsProperties(Map.of("DEPLOY_TOKEN", "test-token")));
+    private final PipelineParser parser = new PipelineParser(new ExecProperties(4, true, "1", "1g", null), new SecretsProperties(Map.of("DEPLOY_TOKEN", "test-token")));
 
     @Test
     void parsesPipelinesAndDefaultsToSequentialStages() {

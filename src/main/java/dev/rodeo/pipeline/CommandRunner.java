@@ -1,6 +1,6 @@
 package dev.rodeo.pipeline;
 
-import dev.rodeo.config.ToolProperties;
+import dev.rodeo.config.Platform;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.nio.file.Path;
@@ -18,16 +18,11 @@ public class CommandRunner {
     public static final int TIMED_OUT = -1;
 
     private static final Logger log = LoggerFactory.getLogger(CommandRunner.class);
-
-    private final ToolProperties tools;
-
-    public CommandRunner(ToolProperties tools) {
-        this.tools = tools;
-    }
+    private static final Duration OUTPUT_GRACE = Duration.ofSeconds(5);
 
     public int execute(String command, Path directory, Map<String, String> environment, String prefix, Duration timeout)
             throws IOException, InterruptedException {
-        return run(List.of(tools.shell(), "-c", command), directory, environment, prefix, timeout, () -> { });
+        return run(List.of(Platform.shell(), Platform.shellFlag(), command), directory, environment, prefix, timeout, () -> { });
     }
 
     public int run(
@@ -47,13 +42,19 @@ public class CommandRunner {
         Thread output = Thread.ofVirtual().start(() -> relay(process, prefix));
 
         if (!process.waitFor(timeout.toMillis(), TimeUnit.MILLISECONDS)) {
-            process.destroyForcibly();
+            stopTree(process);
             onTimeout.run();
-            output.join();
+            output.join(OUTPUT_GRACE.toMillis());
+            log.error("{}timed out after {}: {}", prefix, timeout, String.join(" ", argv));
             return TIMED_OUT;
         }
         output.join();
         return process.exitValue();
+    }
+
+    private static void stopTree(Process process) {
+        process.descendants().forEach(ProcessHandle::destroyForcibly);
+        process.destroyForcibly();
     }
 
     private static void relay(Process process, String prefix) {

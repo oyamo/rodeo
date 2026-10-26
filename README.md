@@ -12,6 +12,8 @@ Push-triggered pipeline runner for Git repositories. On a push to a configured b
 ![Rodeo image](./media/cover-art.png)
 *Rodeo riding art by [Rodeo Team](https://x.com/oyamo_brian), licensed under [Creative Commons 4.0 Attribution license](https://creativecommons.org/licenses/by/4.0/).*
 
+The official documentation is available art [https://oyamo.github.io/rodeo](https://oyamo.github.io/rodeo)
+
 ## Example
 
 ```toml

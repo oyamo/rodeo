@@ -8,8 +8,7 @@ Push-triggered pipeline runner for Git repositories. On a push to a configured b
 ![Spring Boot](https://img.shields.io/badge/Spring%20Boot-4.0.9-6DB33F)
 [![Docs](https://img.shields.io/badge/docs-oyamo.github.io%2Frodeo-blue)](https://oyamo.github.io/rodeo/)
 
-![Rodeo image](./media/cover-art.png)
-*Rodeo riding art by [Rodeo Team][https://x.com/oyamo_brian], licensed under [Creative Commons 4.0 Attribution license][https://creativecommons.org/licenses/by/4.0/].*
+*Rodeo riding art by [Rodeo Team](https://x.com/oyamo_brian), licensed under [Creative Commons 4.0 Attribution license](https://creativecommons.org/licenses/by/4.0/).*
 
 ## Example
 

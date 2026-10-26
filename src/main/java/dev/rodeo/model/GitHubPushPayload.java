@@ -2,6 +2,8 @@ package dev.rodeo.model;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
 import java.util.List;
+import java.util.Objects;
+import java.util.Optional;
 
 public record GitHubPushPayload(
         String ref,
@@ -16,8 +18,8 @@ public record GitHubPushPayload(
                 repository.cloneUrl(),
                 PushEvent.branchFromRef(ref),
                 after,
-                pusher == null ? null : pusher.name(),
-                commits == null ? 0 : commits.size());
+                Optional.ofNullable(pusher).map(Pusher::name).orElse(null),
+                Objects.requireNonNullElse(commits, List.of()).size());
     }
 
     public record Repository(

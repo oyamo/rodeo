@@ -1,6 +1,14 @@
 #!/bin/sh
 set -eu
 
+readonly SERVICE=rodeo
+readonly SERVICE_USER=rodeo
+readonly OPT_DIR=/opt/rodeo
+readonly ETC_DIR=/etc/rodeo
+readonly DATA_DIR=/var/lib/rodeo
+readonly UNIT_DIR=/etc/systemd/system
+readonly EXAMPLE_CONFIG_NAME=config.example.toml
+
 HERE=$(cd "$(dirname "$0")" && pwd)
 ACTION=""
 JAR=""
@@ -14,7 +22,7 @@ usage() {
     cat <<USAGE
 usage: install.sh <install|upgrade|uninstall|status> [options]
 
-  install     create the rodeo user and directories, install the jar,
+  install     create the $SERVICE_USER user and directories, install the jar,
               write the systemd unit, and start the service
   upgrade     replace the jar and restart the service
   uninstall   stop the service and remove the jar and unit
@@ -22,8 +30,8 @@ usage: install.sh <install|upgrade|uninstall|status> [options]
 
 options:
   --jar PATH       the rodeo jar to install (install, upgrade)
-  --config PATH    config file to install; defaults to a copy of config.example.toml
-  --purge          with uninstall, also remove the config and the rodeo user
+  --config PATH    config file to install; defaults to a copy of $EXAMPLE_CONFIG_NAME
+  --purge          with uninstall, also remove the config and the $SERVICE_USER user
   --no-systemd     install files only; do not touch systemd
   --prefix DIR     install into DIR instead of the system (for testing)
   --dry-run        print the actions instead of running them
@@ -43,14 +51,30 @@ run() {
     fi
 }
 
+# Where a system path lands. Empty PREFIX means the real system.
+at() {
+    printf '%s%s' "$PREFIX" "$1"
+}
+
+# True when the script changes the real system: not a test prefix, not a dry run.
+touches_system() {
+    [ -z "$PREFIX" ] && [ "$DRY_RUN" -eq 0 ]
+}
+
+systemctl_if_enabled() {
+    if [ "$SYSTEMD" -eq 1 ]; then
+        run systemctl "$@"
+    fi
+}
+
 require_linux() {
     if [ -z "$PREFIX" ] && [ "$DRY_RUN" -eq 0 ] && [ "$(uname -s)" != "Linux" ]; then
-        die "this script manages systemd services on Linux. On other systems run $HERE/rodeo --rodeo.config=PATH directly."
+        die "this script manages systemd services on Linux. On other systems run $HERE/$SERVICE --rodeo.config=PATH directly."
     fi
 }
 
 require_root() {
-    if [ -z "$PREFIX" ] && [ "$DRY_RUN" -eq 0 ] && [ "$(id -u)" -ne 0 ]; then
+    if touches_system && [ "$(id -u)" -ne 0 ]; then
         die "run as root, for example: sudo $0 $ACTION ..."
     fi
 }
@@ -61,33 +85,33 @@ require_jar() {
 }
 
 create_account() {
-    if [ -z "$PREFIX" ] && ! id rodeo >/dev/null 2>&1; then
-        run useradd --system --home-dir /var/lib/rodeo --shell /usr/sbin/nologin rodeo
+    if [ -z "$PREFIX" ] && ! id "$SERVICE_USER" >/dev/null 2>&1; then
+        run useradd --system --home-dir "$DATA_DIR" --shell /usr/sbin/nologin "$SERVICE_USER"
     fi
 }
 
 install_files() {
-    run mkdir -p "$PREFIX/opt/rodeo" "$PREFIX/etc/rodeo" "$PREFIX/var/lib/rodeo" "$PREFIX/etc/systemd/system"
-    run install -m 0644 "$JAR" "$PREFIX/opt/rodeo/rodeo.jar"
-    run install -m 0755 "$HERE/rodeo" "$PREFIX/opt/rodeo/rodeo"
-    if [ ! -f "$PREFIX/etc/rodeo/config.toml" ]; then
-        if [ -n "$CONFIG" ]; then
-            run install -m 0640 "$CONFIG" "$PREFIX/etc/rodeo/config.toml"
-        else
-            run install -m 0640 "$HERE/config.example.toml" "$PREFIX/etc/rodeo/config.toml"
-            echo "edit $PREFIX/etc/rodeo/config.toml and set the webhook secrets before starting rodeo"
-        fi
+    run mkdir -p "$(at "$OPT_DIR")" "$(at "$ETC_DIR")" "$(at "$DATA_DIR")" "$(at "$UNIT_DIR")"
+    run install -m 0644 "$JAR" "$(at "$OPT_DIR")/$SERVICE.jar"
+    run install -m 0755 "$HERE/$SERVICE" "$(at "$OPT_DIR")/$SERVICE"
+    install_config
+    if touches_system; then
+        chown "root:$SERVICE_USER" "$ETC_DIR/config.toml"
+        chown "$SERVICE_USER" "$DATA_DIR"
     fi
-    if [ -z "$PREFIX" ] && [ "$DRY_RUN" -eq 0 ]; then
-        chown root:rodeo /etc/rodeo/config.toml
-        chown rodeo /var/lib/rodeo
-    fi
-    run install -m 0644 "$HERE/rodeo.service" "$PREFIX/etc/systemd/system/rodeo.service"
+    run install -m 0644 "$HERE/$SERVICE.service" "$(at "$UNIT_DIR")/$SERVICE.service"
 }
 
-systemctl_if_enabled() {
-    if [ "$SYSTEMD" -eq 1 ]; then
-        run systemctl "$@"
+install_config() {
+    config="$(at "$ETC_DIR")/config.toml"
+    if [ -f "$config" ]; then
+        return
+    fi
+    if [ -n "$CONFIG" ]; then
+        run install -m 0640 "$CONFIG" "$config"
+    else
+        run install -m 0640 "$HERE/$EXAMPLE_CONFIG_NAME" "$config"
+        echo "edit $config and set the webhook secrets before starting $SERVICE"
     fi
 }
 
@@ -98,36 +122,36 @@ install_rodeo() {
     create_account
     install_files
     systemctl_if_enabled daemon-reload
-    systemctl_if_enabled enable --now rodeo
+    systemctl_if_enabled enable --now "$SERVICE"
 }
 
 upgrade_rodeo() {
     require_linux
     require_root
     require_jar
-    run install -m 0644 "$JAR" "$PREFIX/opt/rodeo/rodeo.jar"
-    systemctl_if_enabled restart rodeo
+    run install -m 0644 "$JAR" "$(at "$OPT_DIR")/$SERVICE.jar"
+    systemctl_if_enabled restart "$SERVICE"
 }
 
 uninstall_rodeo() {
     require_linux
     require_root
-    systemctl_if_enabled disable --now rodeo
-    run rm -f "$PREFIX/etc/systemd/system/rodeo.service"
-    run rm -rf "$PREFIX/opt/rodeo"
+    systemctl_if_enabled disable --now "$SERVICE"
+    run rm -f "$(at "$UNIT_DIR")/$SERVICE.service"
+    run rm -rf "$(at "$OPT_DIR")"
     systemctl_if_enabled daemon-reload
     if [ "$PURGE" -eq 1 ]; then
-        run rm -rf "$PREFIX/etc/rodeo" "$PREFIX/var/lib/rodeo"
+        run rm -rf "$(at "$ETC_DIR")" "$(at "$DATA_DIR")"
         if [ -z "$PREFIX" ]; then
-            run userdel rodeo
+            run userdel "$SERVICE_USER"
         fi
     else
-        echo "kept $PREFIX/etc/rodeo and the rodeo user; pass --purge to remove them"
+        echo "kept $(at "$ETC_DIR") and the $SERVICE_USER user; pass --purge to remove them"
     fi
 }
 
 status_rodeo() {
-    systemctl_if_enabled status rodeo
+    systemctl_if_enabled status "$SERVICE"
 }
 
 [ $# -gt 0 ] || { usage; exit 1; }

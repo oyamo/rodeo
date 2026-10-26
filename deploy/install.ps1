@@ -11,10 +11,22 @@ param(
 $ErrorActionPreference = 'Stop'
 
 $ServiceName = 'rodeo'
+$Description = 'rodeo pipeline runner'
+$JarName = 'rodeo.jar'
+$ExampleConfigName = 'config.example.toml'
+$NssmName = 'nssm.exe'
 $InstallDir = Join-Path $env:ProgramFiles 'rodeo'
 $DataDir = Join-Path $env:ProgramData 'rodeo'
 $ConfigFile = Join-Path $DataDir 'config.toml'
+$InstalledJar = Join-Path $InstallDir $JarName
 $Here = Split-Path -Parent $MyInvocation.MyCommand.Path
+
+$ServiceSettings = [ordered]@{
+    Description = $Description
+    AppDirectory = $InstallDir
+    Start = 'SERVICE_AUTO_START'
+    AppExit = 'Default Restart'
+}
 
 function Require-Administrator {
     $principal = [Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()
@@ -23,19 +35,19 @@ function Require-Administrator {
     }
 }
 
-function Require-Nssm {
-    $bundled = Join-Path $Here 'nssm.exe'
-    $installed = Get-Command nssm -ErrorAction SilentlyContinue
+function Get-Nssm {
+    $bundled = Join-Path $Here $NssmName
     if (Test-Path $bundled) {
-        $script:Nssm = $bundled
-    } elseif ($installed) {
-        $script:Nssm = $installed.Source
-    } else {
-        throw 'NSSM is required to register the service. Install it with: winget install --id NSSM.NSSM -e'
+        return $bundled
     }
+    $installed = Get-Command nssm -ErrorAction SilentlyContinue
+    if ($installed) {
+        return $installed.Source
+    }
+    throw 'NSSM is required to register the service. Install it with: winget install --id NSSM.NSSM -e'
 }
 
-function Require-Java {
+function Get-JavaPath {
     $java = Get-Command java -ErrorAction SilentlyContinue
     if (-not $java) {
         throw 'Java 21 or newer is required. Install it with: winget install --id EclipseAdoptium.Temurin.21.JDK -e'
@@ -48,56 +60,59 @@ function Require-Jar {
     if (-not (Test-Path $Jar)) { throw "no such jar: $Jar" }
 }
 
-function Install-Files {
-    New-Item -ItemType Directory -Force -Path $InstallDir, $DataDir | Out-Null
-    $target = Join-Path $InstallDir 'rodeo.jar'
-    if ((Resolve-Path $Jar).Path -ne $target) {
-        Copy-Item -Force -Path $Jar -Destination $target
+function Copy-Jar {
+    if ((Resolve-Path $Jar).Path -ne $InstalledJar) {
+        Copy-Item -Force -Path $Jar -Destination $InstalledJar
     }
-    if (-not (Test-Path $ConfigFile)) {
-        if ($Config) {
-            Copy-Item -Path $Config -Destination $ConfigFile
-        } else {
-            Copy-Item -Path (Join-Path $Here 'config.example.toml') -Destination $ConfigFile
-            Write-Host "edit $ConfigFile and set the webhook secrets before starting rodeo"
-        }
+}
+
+function Install-Config {
+    if (Test-Path $ConfigFile) {
+        return
+    }
+    if ($Config) {
+        Copy-Item -Path $Config -Destination $ConfigFile
+    } else {
+        Copy-Item -Path (Join-Path $Here $ExampleConfigName) -Destination $ConfigFile
+        Write-Host "edit $ConfigFile and set the webhook secrets before starting rodeo"
     }
 }
 
 function Register-Service {
-    param([string]$JavaPath)
-    $arguments = "-jar `"$(Join-Path $InstallDir 'rodeo.jar')`" --rodeo.config=`"$ConfigFile`""
-    & $script:Nssm install $ServiceName $JavaPath $arguments | Out-Null
-    & $script:Nssm set $ServiceName Description 'rodeo pipeline runner' | Out-Null
-    & $script:Nssm set $ServiceName AppDirectory $InstallDir | Out-Null
-    & $script:Nssm set $ServiceName Start SERVICE_AUTO_START | Out-Null
-    & $script:Nssm set $ServiceName AppExit Default Restart | Out-Null
+    param([string]$Nssm, [string]$JavaPath)
+    $arguments = "-jar `"$InstalledJar`" --rodeo.config=`"$ConfigFile`""
+    & $Nssm install $ServiceName $JavaPath $arguments | Out-Null
+    foreach ($setting in $ServiceSettings.GetEnumerator()) {
+        & $Nssm set $ServiceName $setting.Key $setting.Value | Out-Null
+    }
 }
 
 function Install-Rodeo {
     Require-Administrator
     Require-Jar
-    Require-Nssm
-    $java = Require-Java
-    Install-Files
-    Register-Service -JavaPath $java
-    & $script:Nssm start $ServiceName
+    $nssm = Get-Nssm
+    $javaPath = Get-JavaPath
+    New-Item -ItemType Directory -Force -Path $InstallDir, $DataDir | Out-Null
+    Copy-Jar
+    Install-Config
+    Register-Service -Nssm $nssm -JavaPath $javaPath
+    & $nssm start $ServiceName
 }
 
 function Upgrade-Rodeo {
     Require-Administrator
     Require-Jar
-    Require-Nssm
-    & $script:Nssm stop $ServiceName | Out-Null
-    Copy-Item -Force -Path $Jar -Destination (Join-Path $InstallDir 'rodeo.jar')
-    & $script:Nssm start $ServiceName
+    $nssm = Get-Nssm
+    & $nssm stop $ServiceName | Out-Null
+    Copy-Jar
+    & $nssm start $ServiceName
 }
 
 function Uninstall-Rodeo {
     Require-Administrator
-    Require-Nssm
-    & $script:Nssm stop $ServiceName | Out-Null
-    & $script:Nssm remove $ServiceName confirm | Out-Null
+    $nssm = Get-Nssm
+    & $nssm stop $ServiceName | Out-Null
+    & $nssm remove $ServiceName confirm | Out-Null
     Remove-Item -Recurse -Force -Path $InstallDir -ErrorAction SilentlyContinue
     if ($Purge) {
         Remove-Item -Recurse -Force -Path $DataDir -ErrorAction SilentlyContinue

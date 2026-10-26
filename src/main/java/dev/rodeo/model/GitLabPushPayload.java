@@ -2,6 +2,7 @@ package dev.rodeo.model;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
 import java.util.List;
+import java.util.Objects;
 
 public record GitLabPushPayload(
         String ref,
@@ -17,7 +18,7 @@ public record GitLabPushPayload(
                 PushEvent.branchFromRef(ref),
                 after,
                 userUsername,
-                commits == null ? 0 : commits.size());
+                Objects.requireNonNullElse(commits, List.of()).size());
     }
 
     public record Project(

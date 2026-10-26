@@ -1,6 +1,7 @@
 package dev.rodeo.service;
 
 import dev.rodeo.model.PushEvent;
+import java.util.Objects;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
@@ -15,7 +16,7 @@ class LoggingPushEventHandler implements PushEventHandler {
                 event.provider(),
                 event.repository(),
                 event.branch(),
-                event.pusher() == null ? "unknown" : event.pusher(),
+                Objects.requireNonNullElse(event.pusher(), "unknown"),
                 event.commitCount(),
                 event.after());
     }

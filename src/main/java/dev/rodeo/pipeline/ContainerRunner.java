@@ -1,13 +1,12 @@
 package dev.rodeo.pipeline;
 
-import dev.rodeo.config.RodeoProperties;
 import dev.rodeo.config.Platform;
+import dev.rodeo.config.RodeoProperties;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Duration;
 import java.util.ArrayList;
-import java.util.concurrent.TimeUnit;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
@@ -24,6 +23,10 @@ public class ContainerRunner {
     static final String PIDS_LIMIT = "512";
 
     private static final Logger log = LoggerFactory.getLogger(ContainerRunner.class);
+    private static final String DOCKER = "docker";
+    private static final String CONTAINER_SHELL = "sh";
+    private static final String BRIDGE_NETWORK = "bridge";
+    private static final String NO_NETWORK = "none";
     private static final Duration KILL_TIMEOUT = Duration.ofSeconds(30);
 
     private final CommandRunner commandRunner;
@@ -43,7 +46,7 @@ public class ContainerRunner {
             String prefix,
             Duration timeout) throws IOException, InterruptedException {
         List<String> argv = new ArrayList<>(runArguments(
-                Platform.tool("docker"),
+                Platform.tool(DOCKER),
                 containerName,
                 stage.image(),
                 stage.network(),
@@ -56,12 +59,11 @@ public class ContainerRunner {
         argv.add("-c");
         argv.add(command);
 
-        Map<String, String> processEnvironment = new HashMap<>();
-        processEnvironment.put("PATH", Platform.path());
-        processEnvironment.put("HOME", Platform.homeDirectory());
+        Map<String, String> processEnvironment = new HashMap<>(Platform.environment());
         processEnvironment.putAll(environment);
-        return commandRunner.run(argv, workspace, processEnvironment, prefix, timeout,
-                () -> kill(containerName));
+        CommandRunner.Invocation invocation =
+                new CommandRunner.Invocation(argv, workspace, processEnvironment, prefix, timeout);
+        return commandRunner.run(invocation, () -> kill(containerName));
     }
 
     static List<String> runArguments(
@@ -80,25 +82,35 @@ public class ContainerRunner {
                 "--rm",
                 "--init",
                 "--name", containerName,
-                "--network", network ? "bridge" : "none",
+                "--network", networkMode(network),
                 "--cpus", cpus,
                 "--memory", memory,
                 "--pids-limit", PIDS_LIMIT,
-                "--entrypoint", "sh",
+                "--entrypoint", CONTAINER_SHELL,
                 "--cap-drop", "ALL",
                 "--security-opt", "no-new-privileges",
                 "--mount", "type=bind,source=" + workspace + ",target=" + WORKSPACE_MOUNT,
-                "--workdir", dir == null ? WORKSPACE_MOUNT : WORKSPACE_MOUNT + "/" + dir));
-        owner.ifPresent(id -> {
-            argv.add("--user");
-            argv.add(id);
-        });
+                "--workdir", workdir(dir)));
+        owner.ifPresent(id -> argv.addAll(List.of("--user", id)));
         for (String name : environmentNames) {
-            argv.add("-e");
-            argv.add(name);
+            argv.addAll(List.of("-e", name));
         }
         argv.add(image);
         return argv;
+    }
+
+    private static String networkMode(boolean network) {
+        if (network) {
+            return BRIDGE_NETWORK;
+        }
+        return NO_NETWORK;
+    }
+
+    private static String workdir(String dir) {
+        if (dir == null) {
+            return WORKSPACE_MOUNT;
+        }
+        return WORKSPACE_MOUNT + "/" + dir;
     }
 
     static Optional<String> ownerOf(Path workspace) {
@@ -113,16 +125,12 @@ public class ContainerRunner {
 
     private void kill(String containerName) {
         try {
-            ProcessBuilder builder = new ProcessBuilder(Platform.tool("docker"), "kill", containerName)
-                    .redirectErrorStream(true);
-            builder.environment().clear();
-            builder.environment().put("PATH", Platform.path());
-            builder.environment().put("HOME", Platform.homeDirectory());
-            Process process = builder.start();
-            process.getInputStream().readAllBytes();
-            if (!process.waitFor(KILL_TIMEOUT.toSeconds(), TimeUnit.SECONDS)) {
-                process.destroyForcibly();
-            }
+            commandRunner.run(new CommandRunner.Invocation(
+                    List.of(Platform.tool(DOCKER), "kill", containerName),
+                    Platform.home(),
+                    Platform.environment(),
+                    "",
+                    KILL_TIMEOUT), () -> { });
         } catch (IOException | InterruptedException e) {
             log.warn("could not kill container {}: {}", containerName, e.getMessage());
         }

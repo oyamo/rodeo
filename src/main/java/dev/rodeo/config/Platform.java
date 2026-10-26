@@ -17,71 +17,69 @@ public final class Platform {
         LINUX
     }
 
-    private static final List<String> UNIX_DIRECTORIES = List.of(
-            "/opt/homebrew/bin", "/usr/local/sbin", "/usr/local/bin", "/usr/sbin", "/usr/bin", "/sbin", "/bin");
+    private static final String PATH = "PATH";
+    private static final String HOME = "HOME";
+    private static final String SYSTEM_ROOT = "SystemRoot";
+    private static final String WINDOWS_EXTENSION = ".exe";
+    private static final String POSIX_SHELL = "sh";
+    private static final String POSIX_SHELL_FLAG = "-c";
+    private static final String WINDOWS_SHELL_FLAG = "-Command";
+    private static final List<String> WINDOWS_SHELLS = List.of("pwsh", "powershell");
+    private static final Os OS = detect(System.getProperty("os.name", ""));
 
-    private static final List<String> WINDOWS_DIRECTORIES = List.of(
-            "Windows\\System32",
-            "Windows\\System32\\WindowsPowerShell\\v1.0",
-            "Program Files\\PowerShell\\7",
-            "Program Files\\Git\\cmd",
-            "Program Files\\Docker\\Docker\\resources\\bin");
+    private static final List<Path> UNIX_DIRECTORIES = List.of(
+            Path.of("/opt/homebrew/bin"),
+            Path.of("/usr/local/sbin"),
+            Path.of("/usr/local/bin"),
+            Path.of("/usr/sbin"),
+            Path.of("/usr/bin"),
+            Path.of("/sbin"),
+            Path.of("/bin"));
+
+    private static final List<Path> WINDOWS_DIRECTORIES = List.of(
+            Path.of("Windows", "System32"),
+            Path.of("Windows", "System32", "WindowsPowerShell", "v1.0"),
+            Path.of("Program Files", "PowerShell", "7"),
+            Path.of("Program Files", "Git", "cmd"),
+            Path.of("Program Files", "Docker", "Docker", "resources", "bin"));
 
     private Platform() {
     }
 
     public static Os os() {
-        String name = System.getProperty("os.name", "").toLowerCase(Locale.ROOT);
-        if (name.startsWith("windows")) {
-            return Os.WINDOWS;
-        }
-        if (name.startsWith("mac")) {
-            return Os.MACOS;
-        }
-        return Os.LINUX;
+        return OS;
     }
 
     public static Path home() {
         return Path.of(System.getProperty("user.home"));
     }
 
-    public static Path systemDrive() {
-        return home().getRoot();
-    }
-
-    public static String systemRoot() {
-        return systemDrive().resolve("Windows").toString();
-    }
-
-    public static String homeDirectory() {
-        return home().toString();
-    }
-
-    public static Map<String, String> hostEnv() {
-        Map<String, String> values = new LinkedHashMap<>();
-        if (os() == Os.WINDOWS) {
-            values.put("SystemRoot", systemRoot());
+    public static Map<String, String> environment() {
+        Map<String, String> environment = new LinkedHashMap<>();
+        environment.put(PATH, path());
+        environment.put(HOME, home().toString());
+        if (OS == Os.WINDOWS) {
+            environment.put(SYSTEM_ROOT, home().getRoot().resolve("Windows").toString());
         }
-        return values;
+        return environment;
     }
 
     public static String path() {
-        return searchDirectories().stream()
-                .map(Path::toString)
-                .reduce((left, right) -> left + File.pathSeparator + right)
-                .orElse("");
+        return String.join(File.pathSeparator, searchDirectories().stream().map(Path::toString).toList());
     }
 
     public static String shell() {
-        if (os() == Os.WINDOWS) {
-            return find("pwsh").or(() -> find("powershell")).orElse("powershell");
+        if (OS == Os.WINDOWS) {
+            return windowsShell();
         }
-        Path posixShell = Path.of("/bin/sh");
-        return Files.isRegularFile(posixShell) ? posixShell.toString() : find("sh").orElse("sh");
+        return find(POSIX_SHELL).orElse(POSIX_SHELL);
     }
 
     public static String shellFlag() {
-        return os() == Os.WINDOWS ? "-Command" : "-c";
+        if (OS == Os.WINDOWS) {
+            return WINDOWS_SHELL_FLAG;
+        }
+        return POSIX_SHELL_FLAG;
     }
 
     public static String tool(String name) {
@@ -89,10 +87,9 @@ public final class Platform {
     }
 
     static Optional<String> find(String name) {
-        List<String> candidates = os() == Os.WINDOWS ? List.of(name + ".exe", name) : List.of(name);
         for (Path directory : searchDirectories()) {
-            for (String candidate : candidates) {
-                Path file = directory.resolve(candidate);
+            for (String executable : executableNames(name)) {
+                Path file = directory.resolve(executable);
                 if (Files.isRegularFile(file)) {
                     return Optional.of(file.toString());
                 }
@@ -102,12 +99,39 @@ public final class Platform {
     }
 
     static List<Path> searchDirectories() {
-        List<String> names = os() == Os.WINDOWS
-                ? WINDOWS_DIRECTORIES.stream().map(directory -> systemDrive().resolve(directory).toString()).toList()
-                : UNIX_DIRECTORIES;
-        return names.stream()
-                .map(Path::of)
-                .filter(Files::isDirectory)
-                .toList();
+        return candidateDirectories().stream().filter(Files::isDirectory).toList();
+    }
+
+    private static String windowsShell() {
+        return WINDOWS_SHELLS.stream()
+                .map(Platform::find)
+                .flatMap(Optional::stream)
+                .findFirst()
+                .orElse(WINDOWS_SHELLS.get(WINDOWS_SHELLS.size() - 1));
+    }
+
+    private static List<Path> candidateDirectories() {
+        if (OS == Os.WINDOWS) {
+            return WINDOWS_DIRECTORIES.stream().map(home().getRoot()::resolve).toList();
+        }
+        return UNIX_DIRECTORIES;
+    }
+
+    private static List<String> executableNames(String name) {
+        if (OS == Os.WINDOWS) {
+            return List.of(name + WINDOWS_EXTENSION, name);
+        }
+        return List.of(name);
+    }
+
+    private static Os detect(String osName) {
+        String name = osName.toLowerCase(Locale.ROOT);
+        if (name.startsWith("windows")) {
+            return Os.WINDOWS;
+        }
+        if (name.startsWith("mac")) {
+            return Os.MACOS;
+        }
+        return Os.LINUX;
     }
 }

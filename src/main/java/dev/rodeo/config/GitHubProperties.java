@@ -6,13 +6,11 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 public record GitHubProperties(String webhookSecret, String token, String apiUrl, String sshKey)
         implements GitCredentials {
 
-    public GitHubProperties {
-        token = blankToNull(token);
-        apiUrl = apiUrl == null || apiUrl.isBlank() ? "https://api.github.com" : apiUrl;
-        sshKey = blankToNull(sshKey);
-    }
+    private static final String GITHUB_API = "https://api.github.com";
 
-    static String blankToNull(String value) {
-        return value == null || value.isBlank() ? null : value.strip();
+    public GitHubProperties {
+        token = Text.blankToNull(token);
+        apiUrl = Text.orDefault(apiUrl, GITHUB_API);
+        sshKey = Text.blankToNull(sshKey);
     }
 }

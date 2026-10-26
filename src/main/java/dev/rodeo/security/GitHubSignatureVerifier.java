@@ -12,6 +12,7 @@ import org.springframework.stereotype.Component;
 
 @Component
 public class GitHubSignatureVerifier {
+
     private static final String ALGORITHM = "HmacSHA256";
     private static final String PREFIX = "sha256=";
 

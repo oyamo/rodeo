@@ -21,30 +21,35 @@ public class RodeoConfigFileListener implements ApplicationListener<ApplicationE
     static final String ARGUMENT = "rodeo.config";
     static final String SOURCE_NAME = "rodeo-config-file";
 
+    private static final String COMMAND_LINE_SOURCE = "commandLineArgs";
+    private static final String PORT = "rodeo.port";
+    private static final String SERVER_PORT = "server.port";
+
     @Override
     public void onApplicationEvent(ApplicationEnvironmentPreparedEvent event) {
         ConfigurableEnvironment environment = event.getEnvironment();
         environment.getPropertySources().remove(StandardEnvironment.SYSTEM_ENVIRONMENT_PROPERTY_SOURCE_NAME);
-        Optional<Path> file = location(environment);
-        if (file.isEmpty()) {
-            return;
+        location(environment).ifPresent(file -> add(environment, file));
+    }
+
+    private static void add(ConfigurableEnvironment environment, Path file) {
+        if (!Files.exists(file)) {
+            throw new IllegalStateException("config file not found: " + file);
         }
-        if (!Files.exists(file.get())) {
-            throw new IllegalStateException("config file not found: " + file.get());
-        }
-        Map<String, Object> properties = load(file.get());
-        PropertySource<?> source = new MapPropertySource(SOURCE_NAME, properties);
-        if (environment.getPropertySources().contains("commandLineArgs")) {
-            environment.getPropertySources().addAfter("commandLineArgs", source);
+        PropertySource<?> source = new MapPropertySource(SOURCE_NAME, load(file));
+        if (environment.getPropertySources().contains(COMMAND_LINE_SOURCE)) {
+            environment.getPropertySources().addAfter(COMMAND_LINE_SOURCE, source);
         } else {
             environment.getPropertySources().addFirst(source);
         }
     }
 
     static Optional<Path> location(ConfigurableEnvironment environment) {
-        PropertySource<?> arguments = environment.getPropertySources().get("commandLineArgs");
-        Object argument = arguments == null ? null : arguments.getProperty(ARGUMENT);
-        return argument == null ? Optional.empty() : Optional.of(Path.of(argument.toString()));
+        PropertySource<?> arguments = environment.getPropertySources().get(COMMAND_LINE_SOURCE);
+        if (arguments == null) {
+            return Optional.empty();
+        }
+        return Optional.ofNullable(arguments.getProperty(ARGUMENT)).map(Object::toString).map(Path::of);
     }
 
     static Map<String, Object> load(Path file) {
@@ -59,15 +64,22 @@ public class RodeoConfigFileListener implements ApplicationListener<ApplicationE
         }
         Map<String, Object> properties = new LinkedHashMap<>();
         flatten("", result, properties);
-        if (properties.containsKey("rodeo.port")) {
-            properties.put("server.port", properties.remove("rodeo.port"));
+        if (properties.containsKey(PORT)) {
+            properties.put(SERVER_PORT, properties.remove(PORT));
         }
         return properties;
     }
 
+    private static String qualifiedName(String prefix, String key) {
+        if (prefix.isEmpty()) {
+            return key;
+        }
+        return prefix + "." + key;
+    }
+
     private static void flatten(String prefix, TomlTable table, Map<String, Object> out) {
         for (String key : table.keySet()) {
-            String name = prefix.isEmpty() ? key : prefix + "." + key;
+            String name = qualifiedName(prefix, key);
             if (table.isTable(key)) {
                 flatten(name, table.getTable(key), out);
             } else {

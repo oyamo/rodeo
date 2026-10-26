@@ -32,9 +32,7 @@ class RunEngineTest {
     @Test
     void independentPipelinesRunConcurrently() throws Exception {
         CountDownLatch bothBuildsStarted = new CountDownLatch(2);
-        StageRunner runner = stage -> stage.name().equals("build")
-                ? awaitPeer(bothBuildsStarted)
-                : Status.SUCCEEDED;
+        StageRunner runner = stage -> runOrPass(stage, bothBuildsStarted);
 
         RunResult result = engine.execute(List.of(
                 stage("frontend", "build", Condition.SUCCESS, false),
@@ -48,7 +46,7 @@ class RunEngineTest {
 
     @Test
     void failureSkipsSuccessDependentsAndRunsFailureAndAlwaysStages() throws Exception {
-        StageRunner runner = stage -> stage.name().equals("a") ? Status.FAILED : Status.SUCCEEDED;
+        StageRunner runner = stage -> outcome(stage.name().equals("a"));
 
         RunResult result = engine.execute(List.of(
                 stage("p", "a", Condition.SUCCESS, false),
@@ -66,7 +64,7 @@ class RunEngineTest {
 
     @Test
     void optionalFailureDoesNotBlockDependents() throws Exception {
-        StageRunner runner = stage -> stage.name().equals("lint") ? Status.FAILED : Status.SUCCEEDED;
+        StageRunner runner = stage -> outcome(stage.name().equals("lint"));
 
         RunResult result = engine.execute(List.of(
                 stage("p", "lint", Condition.SUCCESS, true),
@@ -118,10 +116,24 @@ class RunEngineTest {
                 null);
     }
 
+    private static Status runOrPass(StageSpec stage, CountDownLatch latch) {
+        if (stage.name().equals("build")) {
+            return awaitPeer(latch);
+        }
+        return Status.SUCCEEDED;
+    }
+
+    private static Status outcome(boolean failed) {
+        if (failed) {
+            return Status.FAILED;
+        }
+        return Status.SUCCEEDED;
+    }
+
     private static Status awaitPeer(CountDownLatch latch) {
         latch.countDown();
         try {
-            return latch.await(5, TimeUnit.SECONDS) ? Status.SUCCEEDED : Status.FAILED;
+            return outcome(!latch.await(5, TimeUnit.SECONDS));
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
             return Status.FAILED;

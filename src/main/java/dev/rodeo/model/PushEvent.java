@@ -12,6 +12,9 @@ public record PushEvent(
     private static final String BRANCH_PREFIX = "refs/heads/";
 
     static String branchFromRef(String ref) {
-        return ref != null && ref.startsWith(BRANCH_PREFIX) ? ref.substring(BRANCH_PREFIX.length()) : ref;
+        if (ref == null || !ref.startsWith(BRANCH_PREFIX)) {
+            return ref;
+        }
+        return ref.substring(BRANCH_PREFIX.length());
     }
 }

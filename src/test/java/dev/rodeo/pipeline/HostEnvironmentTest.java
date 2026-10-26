@@ -39,6 +39,6 @@ class HostEnvironmentTest {
         Status status = executor.execute(stage, new RunContext("host0001", workspace, event));
 
         assertThat(status).isEqualTo(Status.SUCCEEDED);
-        assertThat(Files.readString(workspace.resolve("out.txt")).strip()).isEqualTo(Platform.homeDirectory());
+        assertThat(Files.readString(workspace.resolve("out.txt")).strip()).isEqualTo(Platform.home().toString());
     }
 }

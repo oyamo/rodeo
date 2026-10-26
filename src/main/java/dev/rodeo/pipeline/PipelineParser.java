@@ -11,6 +11,7 @@ import java.util.LinkedHashMap;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Queue;
 import java.util.Set;
 import java.util.regex.Matcher;
@@ -27,24 +28,48 @@ public class PipelineParser {
     private static final Pattern DURATION = Pattern.compile("(\\d+)([smh])");
     private static final Pattern NAME = Pattern.compile("[A-Za-z0-9_-]+");
     private static final Pattern IMAGE = Pattern.compile("[A-Za-z0-9][A-Za-z0-9._/:@-]*");
+
     private static final String DEFAULT_TIMEOUT = "10m";
+    private static final String DEFAULT_WHEN = "success";
     private static final String LEGACY_PIPELINE = "default";
+    private static final String LEGACY_STAGE = "default";
     private static final int MAX_RETRIES = 5;
     private static final int MAX_LABEL_LENGTH = 60;
-    private static final Set<String> TOP_LEVEL_OPTIONS = Set.of("on", "branches", "image");
-    private static final Set<String> PIPELINE_OPTIONS = Set.of("on", "env", "image");
+
+    private static final String ON = "on";
+    private static final String BRANCHES = "branches";
+    private static final String IMAGE_KEY = "image";
+    private static final String ENV = "env";
+    private static final String COMMANDS = "commands";
+    private static final String RUN = "run";
+    private static final String NEEDS = "needs";
+    private static final String ON_FAIL = "on_fail";
+    private static final String TEARDOWN = "teardown";
+    private static final String DIR = "dir";
+    private static final String ENV_FILE = "env_file";
+    private static final String TIMEOUT = "timeout";
+    private static final String RETRIES = "retries";
+    private static final String HOST = "host";
+    private static final String NETWORK = "network";
+    private static final String OPTIONAL = "optional";
+    private static final String WHEN = "when";
+    private static final String LABEL = "label";
+    private static final String SECRETS = "secrets";
+
+    private static final Set<String> TOP_LEVEL_OPTIONS = Set.of(ON, BRANCHES, IMAGE_KEY);
+    private static final Set<String> PIPELINE_OPTIONS = Set.of(ON, ENV, IMAGE_KEY);
     private static final Set<String> STAGE_OPTIONS = Set.of(
-            "run", "label", "needs", "when", "dir", "env", "secrets", "timeout", "retries",
-            "optional", "on_fail", "image", "network", "host", "teardown", "env_file");
+            RUN, LABEL, NEEDS, WHEN, DIR, ENV, SECRETS, TIMEOUT, RETRIES,
+            OPTIONAL, ON_FAIL, IMAGE_KEY, NETWORK, HOST, TEARDOWN, ENV_FILE);
 
     private final Set<String> allowedSecrets;
     private final boolean allowHostExecution;
     private final String defaultImage;
 
-    public PipelineParser(RodeoProperties execProperties, SecretsProperties secrets) {
+    public PipelineParser(RodeoProperties properties, SecretsProperties secrets) {
         this.allowedSecrets = Set.copyOf(secrets.values().keySet());
-        this.allowHostExecution = execProperties.allowHostExecution();
-        this.defaultImage = execProperties.stages().defaultImage();
+        this.allowHostExecution = properties.allowHostExecution();
+        this.defaultImage = properties.stages().defaultImage();
     }
 
     public PipelineFile parse(String toml) {
@@ -52,74 +77,64 @@ public class PipelineParser {
         if (result.hasErrors()) {
             throw new PipelineException("invalid rodeo.toml: " + result.errors().getFirst().getMessage());
         }
-
-        List<String> defaultBranches = branches(result);
-        String defaultImage = optionalImage(result, this.defaultImage);
-        if (result.contains("commands")) {
-            return legacy(result, defaultBranches, defaultImage);
+        List<String> branches = branches(result);
+        String image = optionalImage(result, defaultImage);
+        if (result.contains(COMMANDS)) {
+            return legacy(result, branches, image);
         }
 
         List<PipelineSpec> pipelines = new ArrayList<>();
         for (String key : result.keySet()) {
-            if (TOP_LEVEL_OPTIONS.contains(key)) {
-                continue;
+            if (!TOP_LEVEL_OPTIONS.contains(key)) {
+                pipelines.add(pipeline(key, topLevelTable(result, key), branches, image));
             }
-            if (!result.isTable(key)) {
-                throw new PipelineException("unknown top-level key '" + key + "'; pipelines are tables such as [frontend]");
-            }
-            pipelines.add(pipeline(key, result.getTable(key), defaultBranches, defaultImage));
         }
         if (pipelines.isEmpty()) {
             throw new PipelineException("rodeo.toml defines no pipelines");
         }
-
         PipelineFile file = new PipelineFile(pipelines);
         validate(file);
         return file;
     }
 
+    private static TomlTable topLevelTable(TomlParseResult result, String key) {
+        if (!result.isTable(key)) {
+            throw new PipelineException("unknown top-level key '" + key + "'; pipelines are tables such as [frontend]");
+        }
+        return result.getTable(key);
+    }
+
     private static List<String> branches(TomlTable table) {
-        return table.contains("on") ? strings(table, "on") : strings(table, "branches");
+        if (table.contains(ON)) {
+            return strings(table, ON);
+        }
+        return strings(table, BRANCHES);
     }
 
     private PipelineFile legacy(TomlParseResult result, List<String> branches, String image) {
-        requireExecutionTarget(image, false, LEGACY_PIPELINE + "/default");
-        StageSpec stage = new StageSpec(
-                LEGACY_PIPELINE,
-                "default",
-                "default",
-                List.of(),
-                Condition.SUCCESS,
-                commands(result.get("commands"), "commands"),
-                List.of(),
-                Map.of(),
-                List.of(),
-                null,
-                timeout(DEFAULT_TIMEOUT, LEGACY_PIPELINE),
-                0,
-                false,
-                image,
-                false,
-                List.of(),
-                null);
+        requireExecutionTarget(image, false, LEGACY_PIPELINE + "/" + LEGACY_STAGE);
+        StageSpec stage = commandStage(LEGACY_PIPELINE, LEGACY_STAGE, List.of(),
+                commands(result.get(COMMANDS), COMMANDS), Map.of(), image);
         return new PipelineFile(List.of(new PipelineSpec(LEGACY_PIPELINE, branches, List.of(stage))));
     }
 
-    private PipelineSpec pipeline(String name, TomlTable table, List<String> defaultBranches, String defaultImage) {
+    private PipelineSpec pipeline(String name, TomlTable table, List<String> defaultBranches, String image) {
         requireName(name, "pipeline");
-        List<String> branches = table.contains("on") ? strings(table, "on") : defaultBranches;
+        List<String> branches = defaultBranches;
+        if (table.contains(ON)) {
+            branches = strings(table, ON);
+        }
         Map<String, String> env = env(table);
-        String image = optionalImage(table, defaultImage);
+        String pipelineImage = optionalImage(table, image);
 
         List<StageSpec> stages = new ArrayList<>();
         String previous = null;
         for (String key : table.keySet()) {
-            if (PIPELINE_OPTIONS.contains(key)) {
-                continue;
+            if (!PIPELINE_OPTIONS.contains(key)) {
+                StageSpec stage = stage(name, key, table.get(key), env, previous, pipelineImage);
+                stages.add(stage);
+                previous = stage.id();
             }
-            StageSpec stage = stage(name, key, table.get(key), env, previous, image);
-            stages.add(stage);
-            previous = stage.id();
         }
         if (stages.isEmpty()) {
             throw new PipelineException("pipeline " + name + " has no stages");
@@ -136,98 +151,125 @@ public class PipelineParser {
             String pipelineImage) {
         requireName(name, "stage in pipeline " + pipeline);
         String where = pipeline + "/" + name;
+        List<String> needs = Optional.ofNullable(previous).stream().toList();
 
         if (value instanceof String || value instanceof TomlArray) {
             requireExecutionTarget(pipelineImage, false, where);
-            return new StageSpec(
-                    pipeline,
-                    name,
-                    name,
-                    previous == null ? List.of() : List.of(previous),
-                    Condition.SUCCESS,
-                    commands(value, where),
-                    List.of(),
-                    Map.copyOf(pipelineEnv),
-                    List.of(),
-                    null,
-                    timeout(DEFAULT_TIMEOUT, where),
-                    0,
-                    false,
-                    pipelineImage,
-                    false,
-                    List.of(),
-                    null);
+            return commandStage(pipeline, name, needs, commands(value, where), pipelineEnv, pipelineImage);
         }
         if (!(value instanceof TomlTable options)) {
             throw new PipelineException(where + " must be a command, a list of commands, or a table");
         }
-
-        for (String option : options.keySet()) {
-            if (!STAGE_OPTIONS.contains(option)) {
-                throw new PipelineException(where + " has unknown option '" + option
-                        + "'; valid options are " + String.join(", ", STAGE_OPTIONS.stream().sorted().toList()));
-            }
-        }
-
-        Object run = options.get("run");
-        if (run == null) {
+        requireKnownOptions(options, where);
+        if (!options.contains(RUN)) {
             throw new PipelineException(where + " has no run");
         }
 
-        List<String> needs = options.contains("needs")
-                ? strings(options, "needs").stream().map(need -> qualify(need, pipeline)).toList()
-                : previous == null ? List.of() : List.of(previous);
-
         Map<String, String> env = new LinkedHashMap<>(pipelineEnv);
         env.putAll(env(options));
-
-        List<String> secrets = strings(options, "secrets");
-        for (String secret : secrets) {
-            if (!allowedSecrets.contains(secret)) {
-                throw new PipelineException(where + " requests secret " + secret + ", which is not defined in rodeo.properties");
-            }
-        }
-
-        String dir = optional(options, "dir", null);
-        if (dir != null) {
-            validateRelativePath(where, "dir", dir);
-        }
-        String envFile = optional(options, "env_file", null);
-        if (envFile != null) {
-            validateRelativePath(where, "env_file", envFile);
-        }
-
-        long retries = optionalLong(options, "retries", 0);
-        if (retries < 0 || retries > MAX_RETRIES) {
-            throw new PipelineException(where + " retries must be between 0 and " + MAX_RETRIES);
-        }
-
-        boolean host = optionalBoolean(options, "host", false);
-        if (host && options.contains("image")) {
+        List<String> secrets = strings(options, SECRETS);
+        secrets.forEach(secret -> requireDefinedSecret(secret, where));
+        String dir = relativePath(options, DIR, where);
+        String envFile = relativePath(options, ENV_FILE, where);
+        int retries = retries(options, where);
+        boolean host = optionalBoolean(options, HOST, false);
+        if (host && options.contains(IMAGE_KEY)) {
             throw new PipelineException(where + " sets both host and image; choose one");
         }
-        String image = host ? null : optionalImage(options, pipelineImage);
-        boolean network = optionalBoolean(options, "network", false);
+        String image = null;
+        if (!host) {
+            image = optionalImage(options, pipelineImage);
+        }
+        boolean network = optionalBoolean(options, NETWORK, false);
         requireExecutionTarget(image, network, where);
 
         return new StageSpec(
                 pipeline,
                 name,
                 label(options, name, where),
-                needs,
-                Condition.parse(optional(options, "when", "success")),
-                commands(run, where),
-                options.contains("on_fail") ? commands(options.get("on_fail"), where) : List.of(),
+                needsOf(options, pipeline, needs),
+                Condition.parse(optional(options, WHEN, DEFAULT_WHEN)),
+                commands(options.get(RUN), where),
+                optionalCommands(options, ON_FAIL, where),
                 Map.copyOf(env),
                 secrets,
                 dir,
-                timeout(optional(options, "timeout", DEFAULT_TIMEOUT), where),
-                (int) retries,
-                optionalBoolean(options, "optional", false),
+                timeout(optional(options, TIMEOUT, DEFAULT_TIMEOUT), where),
+                retries,
+                optionalBoolean(options, OPTIONAL, false),
                 image,
                 network,
-                options.contains("teardown") ? commands(options.get("teardown"), where) : List.of(),
+                optionalCommands(options, TEARDOWN, where),
                 envFile);
+    }
+
+    private StageSpec commandStage(
+            String pipeline,
+            String name,
+            List<String> needs,
+            List<String> commands,
+            Map<String, String> env,
+            String image) {
+        return new StageSpec(
+                pipeline,
+                name,
+                name,
+                needs,
+                Condition.SUCCESS,
+                commands,
+                List.of(),
+                Map.copyOf(env),
+                List.of(),
+                null,
+                timeout(DEFAULT_TIMEOUT, pipeline + "/" + name),
+                0,
+                false,
+                image,
+                false,
+                List.of(),
+                null);
+    }
+
+    private static void requireKnownOptions(TomlTable options, String where) {
+        for (String option : options.keySet()) {
+            if (!STAGE_OPTIONS.contains(option)) {
+                throw new PipelineException(where + " has unknown option '" + option
+                        + "'; valid options are " + String.join(", ", STAGE_OPTIONS.stream().sorted().toList()));
+            }
+        }
+    }
+
+    private void requireDefinedSecret(String secret, String where) {
+        if (!allowedSecrets.contains(secret)) {
+            throw new PipelineException(where + " requests secret " + secret
+                    + ", which is not defined under [rodeo.secrets] in the server's configuration");
+        }
+    }
+
+    private static String relativePath(TomlTable options, String key, String where) {
+        String value = optional(options, key, null);
+        if (value != null) {
+            Path path = Path.of(value);
+            if (path.isAbsolute() || path.normalize().startsWith("..")) {
+                throw new PipelineException(where + " " + key + " must be a relative path inside the repository");
+            }
+        }
+        return value;
+    }
+
+    private static int retries(TomlTable options, String where) {
+        long retries = optionalLong(options, RETRIES, 0);
+        if (retries < 0 || retries > MAX_RETRIES) {
+            throw new PipelineException(where + " retries must be between 0 and " + MAX_RETRIES);
+        }
+        return (int) retries;
+    }
+
+    private static List<String> optionalCommands(TomlTable options, String key, String where) {
+        if (!options.contains(key)) {
+            return List.of();
+        }
+        return commands(options.get(key), where);
     }
 
     private void requireExecutionTarget(String image, boolean network, String where) {
@@ -240,8 +282,18 @@ public class PipelineParser {
         }
     }
 
+    private static List<String> needsOf(TomlTable options, String pipeline, List<String> defaults) {
+        if (!options.contains(NEEDS)) {
+            return defaults;
+        }
+        return strings(options, NEEDS).stream().map(need -> qualify(need, pipeline)).toList();
+    }
+
     private static String qualify(String need, String pipeline) {
-        return need.contains(".") ? need.replace('.', '/') : pipeline + "/" + need;
+        if (need.contains(".")) {
+            return need.replace('.', '/');
+        }
+        return pipeline + "/" + need;
     }
 
     private static void validate(PipelineFile file) {
@@ -283,7 +335,6 @@ public class PipelineParser {
                 ready.add(id);
             }
         });
-
         int resolved = 0;
         while (!ready.isEmpty()) {
             String id = ready.remove();
@@ -311,13 +362,6 @@ public class PipelineParser {
         }
     }
 
-    private static void validateRelativePath(String where, String key, String value) {
-        Path path = Path.of(value);
-        if (path.isAbsolute() || path.normalize().startsWith("..")) {
-            throw new PipelineException(where + " " + key + " must be a relative path inside the repository");
-        }
-    }
-
     private static Duration timeout(String value, String where) {
         Matcher matcher = DURATION.matcher(value);
         if (!matcher.matches()) {
@@ -335,24 +379,24 @@ public class PipelineParser {
         if (value instanceof String command) {
             return List.of(command);
         }
-        if (value instanceof TomlArray array) {
-            List<String> commands = new ArrayList<>();
-            for (Object item : array.toList()) {
-                if (!(item instanceof String command)) {
-                    throw new PipelineException(where + " commands must be strings");
-                }
-                commands.add(command);
-            }
-            if (commands.isEmpty()) {
-                throw new PipelineException(where + " has an empty command list");
-            }
-            return commands;
+        if (!(value instanceof TomlArray array)) {
+            throw new PipelineException(where + " run must be a string or a list of strings");
         }
-        throw new PipelineException(where + " run must be a string or a list of strings");
+        List<String> commands = new ArrayList<>();
+        for (Object item : array.toList()) {
+            if (!(item instanceof String command)) {
+                throw new PipelineException(where + " commands must be strings");
+            }
+            commands.add(command);
+        }
+        if (commands.isEmpty()) {
+            throw new PipelineException(where + " has an empty command list");
+        }
+        return commands;
     }
 
     private static Map<String, String> env(TomlTable table) {
-        TomlTable env = table.getTable("env");
+        TomlTable env = table.getTable(ENV);
         if (env == null) {
             return Map.of();
         }
@@ -360,7 +404,7 @@ public class PipelineParser {
         for (String key : env.keySet()) {
             String value = env.getString(key);
             if (value == null) {
-                throw new PipelineException("env." + key + " must be a string");
+                throw new PipelineException(ENV + "." + key + " must be a string");
             }
             values.put(key, value);
         }
@@ -370,7 +414,7 @@ public class PipelineParser {
     private static List<String> strings(TomlTable table, String key) {
         TomlArray array = table.getArray(key);
         if (array == null) {
-            return List.of();
+            return new ArrayList<>();
         }
         List<String> values = new ArrayList<>();
         for (Object item : array.toList()) {
@@ -383,7 +427,7 @@ public class PipelineParser {
     }
 
     private static String label(TomlTable options, String name, String where) {
-        String label = optional(options, "label", name);
+        String label = optional(options, LABEL, name);
         if (label.isBlank() || label.length() > MAX_LABEL_LENGTH) {
             throw new PipelineException(where + " label must be 1 to " + MAX_LABEL_LENGTH + " characters");
         }
@@ -391,13 +435,13 @@ public class PipelineParser {
     }
 
     private static String optionalImage(TomlTable table, String fallback) {
-        if (!table.contains("image")) {
+        if (!table.contains(IMAGE_KEY)) {
             return fallback;
         }
-        if (table.isTable("image")) {
+        if (table.isTable(IMAGE_KEY)) {
             throw new PipelineException("'image' is a reserved key; name the pipeline something other than image");
         }
-        String image = table.getString("image");
+        String image = table.getString(IMAGE_KEY);
         if (image == null || !IMAGE.matcher(image).matches()) {
             throw new PipelineException("image must be a container image reference such as alpine:3.20");
         }

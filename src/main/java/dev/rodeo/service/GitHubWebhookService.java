@@ -12,6 +12,8 @@ import tools.jackson.databind.ObjectMapper;
 @Service
 public class GitHubWebhookService {
     private static final Logger log = LoggerFactory.getLogger(GitHubWebhookService.class);
+    private static final String PING_EVENT = "ping";
+    private static final String PUSH_EVENT = "push";
 
     private final GitHubSignatureVerifier verifier;
     private final ObjectMapper objectMapper;
@@ -31,11 +33,11 @@ public class GitHubWebhookService {
             return WebhookResult.INVALID_SIGNATURE;
         }
 
-        if ("ping".equals(event)) {
+        if (PING_EVENT.equals(event)) {
             return WebhookResult.PING;
         }
 
-        if (!"push".equals(event)) {
+        if (!PUSH_EVENT.equals(event)) {
             log.debug("Ignoring GitHub {} event for delivery {}", event, deliveryId);
             return WebhookResult.IGNORED;
         }

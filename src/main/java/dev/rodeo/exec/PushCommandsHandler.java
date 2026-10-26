@@ -36,7 +36,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Component;
-import org.springframework.util.FileSystemUtils;
 
 @Component
 public class PushCommandsHandler implements PushEventHandler {
@@ -45,6 +44,7 @@ public class PushCommandsHandler implements PushEventHandler {
     private static final String CONFIG_FILE = "rodeo.toml";
     private static final String STATUS_PREFIX = "rodeo/";
     private static final Duration CLONE_TIMEOUT = Duration.ofMinutes(5);
+    private static final String GIT_TERMINAL_PROMPT = "GIT_TERMINAL_PROMPT";
 
     private final ExecutorService executor;
     private final ExecutorService stagePool;
@@ -81,18 +81,11 @@ public class PushCommandsHandler implements PushEventHandler {
     }
 
     private void runForPush(String runId, PushEvent event) {
-        try {
-            Path workspace = Files.createTempDirectory("rodeo-");
+        try (TemporaryFiles files = new TemporaryFiles()) {
             GitCredentials git = credentialsFor(event);
-            Path credentials = git.token() == null || git.sshKey() != null ? null : writeCredentials(event, git);
-            try {
-                runInWorkspace(runId, event, workspace, credentials, git);
-            } finally {
-                FileSystemUtils.deleteRecursively(workspace);
-                if (credentials != null) {
-                    Files.deleteIfExists(credentials);
-                }
-            }
+            Path workspace = files.directory("rodeo-");
+            Path credentials = credentialsFile(event, git, files);
+            runInWorkspace(runId, event, workspace, credentials, git);
         } catch (Exception e) {
             log.error("run {} aborted for {} on {}: {}", runId, event.repository(), event.branch(), e.getMessage());
             statusReporter.report(event, STATUS_PREFIX + "run", CommitState.FAILURE,
@@ -101,11 +94,18 @@ public class PushCommandsHandler implements PushEventHandler {
     }
 
     private GitCredentials credentialsFor(PushEvent event) {
-        return event.provider() == Provider.GITLAB ? gitlab : github;
+        if (event.provider() == Provider.GITLAB) {
+            return gitlab;
+        }
+        return github;
     }
 
-    private Path writeCredentials(PushEvent event, GitCredentials git) throws IOException {
-        Path file = Files.createTempFile("rodeo-credentials-", "");
+    private static Path credentialsFile(PushEvent event, GitCredentials git, TemporaryFiles files)
+            throws IOException {
+        if (git.token() == null || git.sshKey() != null) {
+            return null;
+        }
+        Path file = files.file("rodeo-credentials-");
         Files.writeString(file, GitAccess.credentialLine(event.cloneUrl(), git.token()) + "\n");
         return file;
     }
@@ -130,8 +130,7 @@ public class PushCommandsHandler implements PushEventHandler {
             return;
         }
 
-        Map<String, List<StageSpec>> pipelines = stages.stream()
-                .collect(Collectors.groupingBy(StageSpec::pipeline, LinkedHashMap::new, Collectors.toList()));
+        Map<String, List<StageSpec>> pipelines = byPipeline(stages);
         pipelines.keySet().forEach(name -> statusReporter.report(
                 event, STATUS_PREFIX + name, CommitState.PENDING, "Run " + runId + " started"));
 
@@ -143,11 +142,15 @@ public class PushCommandsHandler implements PushEventHandler {
         reportPipelines(event, stages, result);
     }
 
+    private static Map<String, List<StageSpec>> byPipeline(List<StageSpec> stages) {
+        return stages.stream()
+                .collect(Collectors.groupingBy(StageSpec::pipeline, LinkedHashMap::new, Collectors.toList()));
+    }
+
     private void reportPipelines(PushEvent event, List<StageSpec> stages, RunResult result) {
         Map<String, StageSpec> specs = stages.stream()
                 .collect(Collectors.toMap(StageSpec::id, stage -> stage));
-        Map<String, List<StageSpec>> pipelines = stages.stream()
-                .collect(Collectors.groupingBy(StageSpec::pipeline, LinkedHashMap::new, Collectors.toList()));
+        Map<String, List<StageSpec>> pipelines = byPipeline(stages);
 
         for (String pipeline : pipelines.keySet()) {
             StageReport failure = result.stages().stream()
@@ -165,11 +168,25 @@ public class PushCommandsHandler implements PushEventHandler {
         }
     }
 
+    private static String outcome(RunResult result) {
+        if (result.succeeded()) {
+            return "SUCCEEDED";
+        }
+        return "FAILED";
+    }
+
+    private static String timeOf(StageReport stage) {
+        if (stage.status() == Status.SKIPPED) {
+            return "-";
+        }
+        return Elapsed.format(stage.elapsed());
+    }
+
     private static void logSummary(String runId, RunResult result, Duration total) {
-        log.info("run {} {} in {}", runId, result.succeeded() ? "SUCCEEDED" : "FAILED", Elapsed.format(total));
+        log.info("run {} {} in {}", runId, outcome(result), Elapsed.format(total));
         log.info("run {} {}", runId, String.format("%-26s %-24s %-10s %s", "STAGE", "LABEL", "STATUS", "TIME"));
         for (StageReport stage : result.stages()) {
-            String time = stage.status() == Status.SKIPPED ? "-" : Elapsed.format(stage.elapsed());
+            String time = timeOf(stage);
             log.info("run {} {}", runId, String.format("%-26s %-24s %-10s %s",
                     stage.id(), stage.label(), stage.status(), time));
         }
@@ -184,9 +201,8 @@ public class PushCommandsHandler implements PushEventHandler {
                 "--", GitAccess.cloneUrl(git, event.cloneUrl()), workspace.toString()));
         ProcessBuilder builder = new ProcessBuilder(argv).inheritIO();
         builder.environment().clear();
-        builder.environment().put("PATH", Platform.path());
-        builder.environment().put("HOME", Platform.homeDirectory());
-        builder.environment().put("GIT_TERMINAL_PROMPT", "0");
+        builder.environment().putAll(Platform.environment());
+        builder.environment().put(GIT_TERMINAL_PROMPT, "0");
 
         Process process = builder.start();
         if (!process.waitFor(CLONE_TIMEOUT.toSeconds(), TimeUnit.SECONDS)) {

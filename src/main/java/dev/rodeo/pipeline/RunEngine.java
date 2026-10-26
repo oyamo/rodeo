@@ -66,20 +66,33 @@ public class RunEngine {
         while (changed) {
             changed = false;
             for (StageSpec stage : byId.values()) {
-                if (status.get(stage.id()) != Status.PENDING || !allNeedsTerminal(stage, status)) {
-                    continue;
-                }
-                changed = true;
-                if (shouldRun(stage, byId, status)) {
-                    status.put(stage.id(), Status.RUNNING);
-                    started++;
-                    pool.execute(() -> finished.add(run(stage, runner)));
-                } else {
-                    status.put(stage.id(), Status.SKIPPED);
+                if (isDecidable(stage, status)) {
+                    changed = true;
+                    started += startOrSkip(stage, byId, status, runner, finished);
                 }
             }
         }
         return started;
+    }
+
+    private boolean isDecidable(StageSpec stage, Map<String, Status> status) {
+        return status.get(stage.id()) == Status.PENDING && allNeedsTerminal(stage, status);
+    }
+
+    /** Returns 1 when the stage was started, 0 when it was skipped. */
+    private int startOrSkip(
+            StageSpec stage,
+            Map<String, StageSpec> byId,
+            Map<String, Status> status,
+            StageRunner runner,
+            BlockingQueue<Finished> finished) {
+        if (!shouldRun(stage, byId, status)) {
+            status.put(stage.id(), Status.SKIPPED);
+            return 0;
+        }
+        status.put(stage.id(), Status.RUNNING);
+        pool.execute(() -> finished.add(run(stage, runner)));
+        return 1;
     }
 
     private static boolean allNeedsTerminal(StageSpec stage, Map<String, Status> status) {

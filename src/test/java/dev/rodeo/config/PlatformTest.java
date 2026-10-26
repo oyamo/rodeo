@@ -24,13 +24,17 @@ class PlatformTest {
     void windowsPassesSystemRootToHostCommands() {
         boolean windows = Platform.os() == Platform.Os.WINDOWS;
 
-        assertThat(Platform.hostEnv().containsKey("SystemRoot")).isEqualTo(windows);
+        assertThat(Platform.environment().containsKey("SystemRoot")).isEqualTo(windows);
     }
 
     @Test
     void shellIsDetectedForThisPlatform() {
         assertThat(Platform.shell()).isNotBlank();
-        assertThat(Platform.shellFlag()).isEqualTo(Platform.os() == Platform.Os.WINDOWS ? "-Command" : "-c");
+        String expected = "-c";
+        if (Platform.os() == Platform.Os.WINDOWS) {
+            expected = "-Command";
+        }
+        assertThat(Platform.shellFlag()).isEqualTo(expected);
     }
 
     @Test

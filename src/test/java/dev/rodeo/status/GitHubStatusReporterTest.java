@@ -10,6 +10,7 @@ import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
+import java.util.Objects;
 import java.util.Queue;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.CopyOnWriteArrayList;
@@ -39,7 +40,7 @@ class GitHubStatusReporterTest {
                     exchange.getRequestHeaders().getFirst("Authorization"),
                     body));
             Integer code = responses.poll();
-            exchange.sendResponseHeaders(code == null ? 201 : code, -1);
+            exchange.sendResponseHeaders(Objects.requireNonNullElse(code, 201), -1);
             exchange.close();
         });
         server.start();

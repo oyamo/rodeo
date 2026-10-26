@@ -1,5 +1,6 @@
 package dev.rodeo.config;
 
+import java.util.Objects;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.boot.context.properties.bind.ConstructorBinding;
 
@@ -8,7 +9,9 @@ public record RodeoProperties(int maxParallelStages, boolean allowHostExecution,
 
     @ConstructorBinding
     public RodeoProperties {
-        maxParallelStages = maxParallelStages > 0 ? maxParallelStages : Runtime.getRuntime().availableProcessors();
-        stages = stages == null ? new StagesProperties(null, null, null) : stages;
+        if (maxParallelStages <= 0) {
+            maxParallelStages = Runtime.getRuntime().availableProcessors();
+        }
+        stages = Objects.requireNonNullElse(stages, new StagesProperties(null, null, null));
     }
 }

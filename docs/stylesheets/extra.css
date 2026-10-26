@@ -5,3 +5,14 @@
 [data-md-color-scheme="slate"] .logo-img {
   filter: invert(1);
 }
+
+.md-sidebar .md-nav__list .md-nav__list {
+  margin-left: 0.6rem;
+  padding-left: 0.6rem;
+  border-left: 1px solid var(--md-default-fg-color--lightest);
+}
+
+.md-nav--primary > .md-nav__list > .md-nav__item > .md-nav__link {
+  color: var(--md-accent-fg-color);
+  font-weight: 700;
+}

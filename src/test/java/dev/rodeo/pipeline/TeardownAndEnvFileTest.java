@@ -12,6 +12,7 @@ import java.nio.file.Path;
 import java.time.Duration;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.Executors;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -71,10 +72,11 @@ class TeardownAndEnvFileTest {
         StageExecutor executor = new StageExecutor(
                 runner,
                 new ContainerRunner(runner, PROPS),
-                new SecretsProperties(Map.of()));
+                new SecretsProperties(Map.of()),
+                Executors.newFixedThreadPool(2));
         PushEvent event = new PushEvent(
                 Provider.GITHUB, "octo/hello", "https://github.com/octo/hello.git", "main", "abc1234", "octocat", 1);
-        return executor.execute(stage, new RunContext("tear0001", workspace, event));
+        return executor.execute(stage, new RunContext("tear0001", workspace, event)).join();
     }
 
     private static StageSpec stage(String name, List<String> run, List<String> teardown, String envFile) {

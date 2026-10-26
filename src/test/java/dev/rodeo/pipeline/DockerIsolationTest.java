@@ -14,6 +14,7 @@ import java.nio.file.Path;
 import java.time.Duration;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
@@ -74,10 +75,11 @@ class DockerIsolationTest {
         RodeoProperties props = new RodeoProperties(4, false, new StagesProperties(null, "1", "1g"));
         CommandRunner runner = new CommandRunner();
         StageExecutor executor = new StageExecutor(
-                runner, new ContainerRunner(runner, props), new SecretsProperties(Map.of()));
+                runner, new ContainerRunner(runner, props), new SecretsProperties(Map.of()),
+                Executors.newFixedThreadPool(2));
         PushEvent event = new PushEvent(
                 Provider.GITHUB, "octo/hello", "https://github.com/octo/hello.git", "main", "abc1234", "octocat", 1);
-        return executor.execute(stage, new RunContext("itest01", workspace, event));
+        return executor.execute(stage, new RunContext("itest01", workspace, event)).join();
     }
 
     private static StageSpec stage(String name, String command, boolean network) {

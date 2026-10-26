@@ -10,6 +10,11 @@ import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.time.Duration;
 import java.util.Map;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.Executor;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpHeaders;
@@ -42,6 +47,8 @@ public class GitHubStatusReporter implements StatusReporter {
     private final String apiUrl;
     private final ObjectMapper objectMapper;
     private final HttpClient httpClient = HttpClient.newBuilder().connectTimeout(CONNECT_TIMEOUT).build();
+    private final ExecutorService sender = Executors.newVirtualThreadPerTaskExecutor();
+    private CompletableFuture<Void> queue = CompletableFuture.completedFuture(null);
 
     public GitHubStatusReporter(GitHubProperties properties, ObjectMapper objectMapper) {
         this.token = properties.token();
@@ -53,37 +60,57 @@ public class GitHubStatusReporter implements StatusReporter {
     }
 
     @Override
-    public void report(PushEvent event, String context, CommitState state, String description) {
+    public synchronized void report(PushEvent event, String context, CommitState state, String description) {
         if (!enabled(event)) {
             return;
         }
         HttpRequest request = request(event, context, state, description);
-        switch (deliver(request, context)) {
-            case DELIVERED -> log.info("status {} {} set on {} for {}",
-                    context, state.value(), shortSha(event), event.repository());
-            case RETRYABLE -> log.error("status {} could not be set on {} after {} attempts",
-                    context, shortSha(event), ATTEMPTS);
-            case REJECTED, STOPPED -> {
-            }
-        }
+        queue = queue.handle((ignored, failure) -> null)
+                .thenCompose(ignored -> attempt(request, context, event, 1, sender));
+    }
+
+    /** Waits until every status queued so far has been sent or has given up. */
+    void awaitIdle() {
+        queue.join();
     }
 
     private boolean enabled(PushEvent event) {
         return token != null && event.provider() == Provider.GITHUB;
     }
 
-    private Delivery deliver(HttpRequest request, String context) {
-        for (int attempt = 1; attempt < ATTEMPTS; attempt++) {
-            Delivery delivery = send(request);
-            if (delivery != Delivery.RETRYABLE) {
-                return delivery;
+    private CompletableFuture<Void> attempt(
+            HttpRequest request,
+            String context,
+            PushEvent event,
+            int attempt,
+            Executor executor) {
+        return CompletableFuture.supplyAsync(() -> send(request), executor)
+                .thenCompose(delivery -> conclude(delivery, request, context, event, attempt));
+    }
+
+    private CompletableFuture<Void> conclude(
+            Delivery delivery,
+            HttpRequest request,
+            String context,
+            PushEvent event,
+            int attempt) {
+        switch (delivery) {
+            case DELIVERED -> log.info("status {} set on {} for {}", context, shortSha(event), event.repository());
+            case RETRYABLE -> {
+                if (attempt < ATTEMPTS) {
+                    log.warn("status {} attempt {} of {} failed; retrying", context, attempt, ATTEMPTS);
+                    return attempt(request, context, event, attempt + 1, delayed());
+                }
+                log.error("status {} could not be set on {} after {} attempts", context, shortSha(event), ATTEMPTS);
             }
-            log.warn("status {} attempt {} of {} failed; retrying", context, attempt, ATTEMPTS);
-            if (!pause()) {
-                return Delivery.STOPPED;
+            case REJECTED, STOPPED -> {
             }
         }
-        return send(request);
+        return CompletableFuture.completedFuture(null);
+    }
+
+    private Executor delayed() {
+        return CompletableFuture.delayedExecutor(RETRY_DELAY.toMillis(), TimeUnit.MILLISECONDS, sender);
     }
 
     private Delivery send(HttpRequest request) {
@@ -109,16 +136,6 @@ public class GitHubStatusReporter implements StatusReporter {
         }
         log.error("GitHub rejected a status update with HTTP {}", code);
         return Delivery.REJECTED;
-    }
-
-    private static boolean pause() {
-        try {
-            Thread.sleep(RETRY_DELAY.toMillis());
-            return true;
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-            return false;
-        }
     }
 
     private HttpRequest request(PushEvent event, String context, CommitState state, String description) {

@@ -47,7 +47,6 @@ public class PushCommandsHandler implements PushEventHandler {
     private static final String GIT_TERMINAL_PROMPT = "GIT_TERMINAL_PROMPT";
 
     private final ExecutorService executor;
-    private final ExecutorService stagePool;
     private final PipelineParser parser;
     private final StageExecutor stageExecutor;
     private final StatusReporter statusReporter;
@@ -56,14 +55,12 @@ public class PushCommandsHandler implements PushEventHandler {
 
     public PushCommandsHandler(
             @Qualifier("pushExecutor") ExecutorService executor,
-            @Qualifier("stagePool") ExecutorService stagePool,
             PipelineParser parser,
             StageExecutor stageExecutor,
             StatusReporter statusReporter,
             GitHubProperties github,
             GitLabProperties gitlab) {
         this.executor = executor;
-        this.stagePool = stagePool;
         this.parser = parser;
         this.stageExecutor = stageExecutor;
         this.statusReporter = statusReporter;
@@ -136,7 +133,7 @@ public class PushCommandsHandler implements PushEventHandler {
 
         log.info("run {} starting {} stage(s)", runId, stages.size());
         RunContext context = new RunContext(runId, workspace, event);
-        RunResult result = new RunEngine(stagePool).execute(stages, stage -> stageExecutor.execute(stage, context));
+        RunResult result = new RunEngine().execute(stages, stage -> stageExecutor.execute(stage, context));
 
         logSummary(runId, result, Duration.between(started, Instant.now()));
         reportPipelines(event, stages, result);

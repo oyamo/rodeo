@@ -132,9 +132,8 @@ class PushCommandsHandlerTest {
         List<String> statuses = new CopyOnWriteArrayList<>();
         PushCommandsHandler handler = new PushCommandsHandler(
                 executor,
-                stagePool,
                 parser,
-                new StageExecutor(commandRunner, new ContainerRunner(commandRunner, props), secrets),
+                new StageExecutor(commandRunner, new ContainerRunner(commandRunner, props), secrets, stagePool),
                 (event, context, state, description) ->
                         statuses.add(context + " " + state + " " + description), new GitHubProperties(null, null, null, null), new GitLabProperties(null, null, null));
 

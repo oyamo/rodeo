@@ -14,8 +14,13 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.Executor;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.TimeUnit;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Component;
 
 @Component
@@ -37,31 +42,34 @@ public class StageExecutor {
     private final CommandRunner commandRunner;
     private final ContainerRunner containerRunner;
     private final SecretsProperties secrets;
+    private final Executor executor;
 
-    public StageExecutor(CommandRunner commandRunner, ContainerRunner containerRunner, SecretsProperties secrets) {
+    public StageExecutor(
+            CommandRunner commandRunner,
+            ContainerRunner containerRunner,
+            SecretsProperties secrets,
+            @Qualifier("stagePool") ExecutorService executor) {
         this.commandRunner = commandRunner;
         this.containerRunner = containerRunner;
         this.secrets = secrets;
+        this.executor = executor;
     }
 
-    public Status execute(StageSpec stage, RunContext context) {
+    public CompletableFuture<Status> execute(StageSpec stage, RunContext context) {
         String tag = "[" + context.runId() + " " + stage.id() + "]";
         Instant start = Instant.now();
+        Map<String, String> environment;
         try {
-            Map<String, String> environment = environment(stage, context, stage.image() != null, secrets);
-            Launcher launcher = launcherFor(stage, context, environment, tag + OUTPUT_SEPARATOR);
-            return runAttempts(stage, launcher, tag, start);
+            environment = environment(stage, context, stage.image() != null, secrets);
         } catch (IllegalStateException e) {
             log.error("{} FAILED: {}", tag, e.getMessage());
-            return Status.FAILED;
+            return CompletableFuture.completedFuture(Status.FAILED);
         } catch (IOException e) {
             log.error("{} FAILED: could not read {}: {}", tag, ENV_FILE_KEY, e.getMessage());
-            return Status.FAILED;
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-            log.error("{} FAILED: interrupted", tag);
-            return Status.FAILED;
+            return CompletableFuture.completedFuture(Status.FAILED);
         }
+        Launcher launcher = launcherFor(stage, context, environment, tag + OUTPUT_SEPARATOR);
+        return attempt(new Run(stage, launcher, tag, start), 0);
     }
 
     private Launcher launcherFor(StageSpec stage, RunContext context, Map<String, String> environment, String output) {
@@ -74,75 +82,98 @@ public class StageExecutor {
         return command -> commandRunner.execute(command, directory, environment, output, stage.timeout());
     }
 
-    private static Path directoryFor(StageSpec stage, RunContext context) {
-        if (stage.dir() == null) {
-            return context.workspace();
-        }
-        return context.workspace().resolve(stage.dir()).normalize();
+    private CompletableFuture<Status> attempt(Run run, int index) {
+        return CompletableFuture.supplyAsync(() -> runOnce(run, index), scheduleFor(run, index))
+                .thenCompose(failure -> conclude(run, index, failure));
     }
 
-    private Status runAttempts(StageSpec stage, Launcher launcher, String tag, Instant start)
-            throws InterruptedException {
-        Optional<String> failure = Optional.empty();
-        for (int attempt = 0; attempt <= stage.retries(); attempt++) {
-            if (attempt > 0) {
-                log.warn("{} RETRY {} of {} in {}", tag, attempt, stage.retries(), Elapsed.format(RETRY_DELAY));
-                Thread.sleep(RETRY_DELAY.toMillis());
-            }
-            runTeardown(stage, launcher, tag, attempt);
-            failure = runAll(stage.run(), launcher, tag, stage.timeout());
-            if (failure.isEmpty()) {
-                log.info("{} SUCCEEDED in {}", tag, Elapsed.format(elapsed(start)));
-                return Status.SUCCEEDED;
-            }
-            if (attempt < stage.retries()) {
-                log.warn("{} attempt {} failed: {}", tag, attempt + 1, failure.get());
-            }
+    private Executor scheduleFor(Run run, int index) {
+        if (index == 0) {
+            return executor;
         }
-
-        if (!stage.onFailure().isEmpty()) {
-            log.warn("{} running on_fail commands", tag);
-            runAll(stage.onFailure(), launcher, tag, stage.timeout());
-        }
-        log.error("{} FAILED in {}: {}", tag, Elapsed.format(elapsed(start)), failure.orElse(""));
-        return Status.FAILED;
+        log.warn("{} RETRY {} of {} in {}", run.tag(), index, run.stage().retries(), Elapsed.format(RETRY_DELAY));
+        return CompletableFuture.delayedExecutor(RETRY_DELAY.toMillis(), TimeUnit.MILLISECONDS, executor);
     }
 
-    private void runTeardown(StageSpec stage, Launcher launcher, String tag, int attempt)
-            throws InterruptedException {
-        if (stage.teardown().isEmpty()) {
-            return;
+    private static Optional<String> runOnce(Run run, int index) {
+        if (!run.stage().teardown().isEmpty()) {
+            log.info("{} teardown before attempt {}", run.tag(), index + 1);
+            if (runAll(run.stage().teardown(), run.launcher(), run.tag(), run.stage().timeout()).isPresent()) {
+                log.warn("{} teardown did not complete cleanly; continuing", run.tag());
+            }
         }
-        log.info("{} teardown before attempt {}", tag, attempt + 1);
-        if (runAll(stage.teardown(), launcher, tag, stage.timeout()).isPresent()) {
-            log.warn("{} teardown did not complete cleanly; continuing", tag);
-        }
+        return runAll(run.stage().run(), run.launcher(), run.tag(), run.stage().timeout());
     }
 
-    private static Optional<String> runAll(List<String> commands, Launcher launcher, String tag, Duration timeout)
-            throws InterruptedException {
+    private CompletableFuture<Status> conclude(Run run, int index, Optional<String> failure) {
+        if (failure.isEmpty()) {
+            log.info("{} SUCCEEDED in {}", run.tag(), Elapsed.format(elapsed(run.start())));
+            return CompletableFuture.completedFuture(Status.SUCCEEDED);
+        }
+        if (index < run.stage().retries()) {
+            log.warn("{} attempt {} failed: {}", run.tag(), index + 1, failure.get());
+            return attempt(run, index + 1);
+        }
+        return fail(run, failure.get());
+    }
+
+    private CompletableFuture<Status> fail(Run run, String reason) {
+        CompletableFuture<Void> cleanup = CompletableFuture.completedFuture(null);
+        if (!run.stage().onFailure().isEmpty()) {
+            cleanup = CompletableFuture.runAsync(() -> runFailureCommands(run), executor);
+        }
+        return cleanup.thenApply(ignored -> {
+            log.error("{} FAILED in {}: {}", run.tag(), Elapsed.format(elapsed(run.start())), reason);
+            return Status.FAILED;
+        });
+    }
+
+    private static void runFailureCommands(Run run) {
+        log.warn("{} running on_fail commands", run.tag());
+        runAll(run.stage().onFailure(), run.launcher(), run.tag(), run.stage().timeout());
+    }
+
+    private static Optional<String> runAll(List<String> commands, Launcher launcher, String tag, Duration timeout) {
         for (int step = 1; step <= commands.size(); step++) {
             String command = commands.get(step - 1);
             String position = "step " + step + "/" + commands.size();
             log.info("{} {} $ {}", tag, position, command);
-            try {
-                int exitCode = launcher.launch(command);
-                if (exitCode == CommandRunner.TIMED_OUT) {
-                    return Optional.of(position + " timed out after " + Elapsed.format(timeout));
-                }
-                if (exitCode != 0) {
-                    return Optional.of(position + " exited with " + exitCode);
-                }
-            } catch (IOException e) {
-                return Optional.of(position + " could not start: " + e.getMessage());
+            Optional<String> failure = launchStep(launcher, command, position, timeout);
+            if (failure.isPresent()) {
+                return failure;
             }
         }
         return Optional.empty();
     }
 
+    private static Optional<String> launchStep(Launcher launcher, String command, String position, Duration timeout) {
+        try {
+            int exitCode = launcher.launch(command);
+            if (exitCode == CommandRunner.TIMED_OUT) {
+                return Optional.of(position + " timed out after " + Elapsed.format(timeout));
+            }
+            if (exitCode != 0) {
+                return Optional.of(position + " exited with " + exitCode);
+            }
+            return Optional.empty();
+        } catch (IOException e) {
+            return Optional.of(position + " could not start: " + e.getMessage());
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            return Optional.of(position + " was interrupted");
+        }
+    }
+
     private static String containerName(RunContext context, StageSpec stage) {
         String suffix = UUID.randomUUID().toString().substring(0, CONTAINER_SUFFIX_LENGTH);
         return CONTAINER_PREFIX + context.runId() + "-" + stage.id().replace('/', '-') + "-" + suffix;
+    }
+
+    private static Path directoryFor(StageSpec stage, RunContext context) {
+        if (stage.dir() == null) {
+            return context.workspace();
+        }
+        return context.workspace().resolve(stage.dir()).normalize();
     }
 
     private static Duration elapsed(Instant start) {
@@ -188,6 +219,9 @@ public class StageExecutor {
             }
         }
         return values;
+    }
+
+    private record Run(StageSpec stage, Launcher launcher, String tag, Instant start) {
     }
 
     @FunctionalInterface

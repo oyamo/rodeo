@@ -58,6 +58,7 @@ class GitHubStatusReporterTest {
                 new GitHubProperties(null, "token-123", apiUrl, null), JsonMapper.builder().build());
 
         reporter.report(githubPush(), "rodeo/app", CommitState.SUCCESS, "All stages succeeded");
+        reporter.awaitIdle();
 
         assertThat(requests).hasSize(1);
         Request request = requests.getFirst();
@@ -78,6 +79,7 @@ class GitHubStatusReporterTest {
                 new GitHubProperties(null, "token-123", apiUrl, null), JsonMapper.builder().build());
 
         reporter.report(githubPush(), "rodeo/app", CommitState.FAILURE, "Failed: Deploy");
+        reporter.awaitIdle();
 
         assertThat(requests).hasSize(3);
     }
@@ -89,6 +91,7 @@ class GitHubStatusReporterTest {
                 new GitHubProperties(null, "token-123", apiUrl, null), JsonMapper.builder().build());
 
         reporter.report(githubPush(), "rodeo/app", CommitState.PENDING, "Run started");
+        reporter.awaitIdle();
 
         assertThat(requests).hasSize(1);
     }
@@ -99,6 +102,7 @@ class GitHubStatusReporterTest {
                 new GitHubProperties(null, "", apiUrl, null), JsonMapper.builder().build());
 
         reporter.report(githubPush(), "rodeo/app", CommitState.SUCCESS, "done");
+        reporter.awaitIdle();
 
         assertThat(requests).isEmpty();
     }
@@ -112,6 +116,7 @@ class GitHubStatusReporterTest {
                 "main", "abc1234", "octocat", 1);
 
         reporter.report(gitlab, "rodeo/app", CommitState.SUCCESS, "done");
+        reporter.awaitIdle();
 
         assertThat(requests).isEmpty();
     }
@@ -122,6 +127,7 @@ class GitHubStatusReporterTest {
                 new GitHubProperties(null, "token-123", apiUrl, null), JsonMapper.builder().build());
 
         reporter.report(githubPush(), "rodeo/app", CommitState.FAILURE, "x".repeat(300));
+        reporter.awaitIdle();
 
         assertThat(requests.getFirst().body()).doesNotContain("x".repeat(141));
     }

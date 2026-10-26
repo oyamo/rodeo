@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import java.time.Duration;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -21,7 +22,7 @@ class RunEngineTest {
     @BeforeEach
     void setUp() {
         pool = Executors.newFixedThreadPool(4);
-        engine = new RunEngine(pool);
+        engine = new RunEngine();
     }
 
     @AfterEach
@@ -32,7 +33,7 @@ class RunEngineTest {
     @Test
     void independentPipelinesRunConcurrently() throws Exception {
         CountDownLatch bothBuildsStarted = new CountDownLatch(2);
-        StageRunner runner = stage -> runOrPass(stage, bothBuildsStarted);
+        StageRunner runner = stage -> CompletableFuture.supplyAsync(() -> runOrPass(stage, bothBuildsStarted), pool);
 
         RunResult result = engine.execute(List.of(
                 stage("frontend", "build", Condition.SUCCESS, false),
@@ -46,7 +47,7 @@ class RunEngineTest {
 
     @Test
     void failureSkipsSuccessDependentsAndRunsFailureAndAlwaysStages() throws Exception {
-        StageRunner runner = stage -> outcome(stage.name().equals("a"));
+        StageRunner runner = stage -> CompletableFuture.completedFuture(outcome(stage.name().equals("a")));
 
         RunResult result = engine.execute(List.of(
                 stage("p", "a", Condition.SUCCESS, false),
@@ -64,7 +65,7 @@ class RunEngineTest {
 
     @Test
     void optionalFailureDoesNotBlockDependents() throws Exception {
-        StageRunner runner = stage -> outcome(stage.name().equals("lint"));
+        StageRunner runner = stage -> CompletableFuture.completedFuture(outcome(stage.name().equals("lint")));
 
         RunResult result = engine.execute(List.of(
                 stage("p", "lint", Condition.SUCCESS, true),
@@ -79,7 +80,7 @@ class RunEngineTest {
     void missingDependencyCountsAsSkipped() throws Exception {
         RunResult result = engine.execute(List.of(
                 stage("p", "deploy", Condition.SUCCESS, false, "other/build")),
-                stage -> Status.SUCCEEDED);
+                stage -> CompletableFuture.completedFuture(Status.SUCCEEDED));
 
         assertThat(result.statusOf("p/deploy")).isEqualTo(Status.SKIPPED);
     }
@@ -88,7 +89,7 @@ class RunEngineTest {
     void reportsLabelsAndElapsedTimePerStage() throws Exception {
         RunResult result = engine.execute(List.of(
                 stage("p", "build", Condition.SUCCESS, false)),
-                stage -> Status.SUCCEEDED);
+                stage -> CompletableFuture.completedFuture(Status.SUCCEEDED));
 
         StageReport report = result.stages().getFirst();
         assertThat(report.label()).isEqualTo("build");

@@ -14,6 +14,7 @@ import java.nio.file.Path;
 import java.time.Duration;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.Executors;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -28,7 +29,8 @@ class HostEnvironmentTest {
         RodeoProperties props = new RodeoProperties(4, true, new StagesProperties(null, "1", "1g"));
         CommandRunner runner = new CommandRunner();
         StageExecutor executor = new StageExecutor(
-                runner, new ContainerRunner(runner, props), new SecretsProperties(Map.of()));
+                runner, new ContainerRunner(runner, props), new SecretsProperties(Map.of()),
+                Executors.newFixedThreadPool(2));
         StageSpec stage = new StageSpec(
                 "app", "home", "home", List.of(), Condition.SUCCESS,
                 List.of("echo \"$HOME\" > out.txt"), List.of(), Map.of(), List.of(), null,
@@ -36,7 +38,7 @@ class HostEnvironmentTest {
         PushEvent event = new PushEvent(
                 Provider.GITHUB, "octo/hello", "https://github.com/octo/hello.git", "main", "abc1234", "octocat", 1);
 
-        Status status = executor.execute(stage, new RunContext("host0001", workspace, event));
+        Status status = executor.execute(stage, new RunContext("host0001", workspace, event)).join();
 
         assertThat(status).isEqualTo(Status.SUCCEEDED);
         assertThat(Files.readString(workspace.resolve("out.txt")).strip()).isEqualTo(Platform.home().toString());

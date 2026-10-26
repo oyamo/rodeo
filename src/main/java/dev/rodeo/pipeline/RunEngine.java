@@ -7,7 +7,6 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.BlockingQueue;
-import java.util.concurrent.ExecutorService;
 import java.util.concurrent.LinkedBlockingQueue;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -15,12 +14,6 @@ import org.slf4j.LoggerFactory;
 public class RunEngine {
 
     private static final Logger log = LoggerFactory.getLogger(RunEngine.class);
-
-    private final ExecutorService pool;
-
-    public RunEngine(ExecutorService pool) {
-        this.pool = pool;
-    }
 
     public RunResult execute(List<StageSpec> stages, StageRunner runner) throws InterruptedException {
         Map<String, StageSpec> byId = new LinkedHashMap<>();
@@ -91,7 +84,7 @@ public class RunEngine {
             return 0;
         }
         status.put(stage.id(), Status.RUNNING);
-        pool.execute(() -> finished.add(run(stage, runner)));
+        start(stage, runner, finished);
         return 1;
     }
 
@@ -112,16 +105,17 @@ public class RunEngine {
         return outcome == Status.SUCCEEDED || (outcome == Status.FAILED && byId.get(need).allowFailure());
     }
 
-    private static Finished run(StageSpec stage, StageRunner runner) {
+    private static void start(StageSpec stage, StageRunner runner, BlockingQueue<Finished> finished) {
         Instant start = Instant.now();
-        Status outcome;
-        try {
-            outcome = runner.run(stage);
-        } catch (RuntimeException e) {
-            log.error("Stage {} failed unexpectedly", stage.id(), e);
-            outcome = Status.FAILED;
-        }
-        return new Finished(stage.id(), outcome, Duration.between(start, Instant.now()));
+        runner.run(stage)
+                .exceptionally(error -> failedUnexpectedly(stage, error))
+                .thenAccept(outcome -> finished.add(
+                        new Finished(stage.id(), outcome, Duration.between(start, Instant.now()))));
+    }
+
+    private static Status failedUnexpectedly(StageSpec stage, Throwable error) {
+        log.error("Stage {} failed unexpectedly", stage.id(), error);
+        return Status.FAILED;
     }
 
     private record Finished(String id, Status status, Duration elapsed) {

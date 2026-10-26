@@ -42,13 +42,13 @@ sudo apt install ./rodeo_<version>_amd64.deb     # Debian and Ubuntu
 sudo dnf install ./rodeo-<version>.x86_64.rpm    # Fedora and RHEL
 ```
 
-Set the webhook secrets in `/etc/rodeo/config.toml`, then start the service:
+The package creates the `rodeo` user, installs the systemd service, and starts it. Set the webhook secrets in `/etc/rodeo/config.toml`, then restart the service:
 
 ```bash
-sudo systemctl enable --now rodeo
+sudo systemctl restart rodeo
 ```
 
-The package creates the `rodeo` user and the systemd service. Removing the package stops the service and keeps `/etc/rodeo`.
+Removing the package stops the service and keeps `/etc/rodeo`.
 
 ## Build the jar
 

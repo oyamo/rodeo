@@ -1,3 +1,7 @@
+<p align="center">
+  <img class="logo-img" src="assets/logo.svg" alt="rodeo logo" width="160">
+</p>
+
 # rodeo
 
 rodeo runs your deployment pipelines when code is pushed. Pipelines are declared in a `rodeo.toml` file in the repository, and rodeo runs them on your own server.

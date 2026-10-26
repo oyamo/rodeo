@@ -1,6 +1,6 @@
 package dev.rodeo.pipeline;
 
-import dev.rodeo.config.ExecProperties;
+import dev.rodeo.config.RodeoProperties;
 import dev.rodeo.config.SecretsProperties;
 import java.nio.file.Path;
 import java.time.Duration;
@@ -41,10 +41,10 @@ public class PipelineParser {
     private final boolean allowHostExecution;
     private final String defaultImage;
 
-    public PipelineParser(ExecProperties execProperties, SecretsProperties secrets) {
+    public PipelineParser(RodeoProperties execProperties, SecretsProperties secrets) {
         this.allowedSecrets = Set.copyOf(secrets.values().keySet());
         this.allowHostExecution = execProperties.allowHostExecution();
-        this.defaultImage = execProperties.defaultImage();
+        this.defaultImage = execProperties.stages().defaultImage();
     }
 
     public PipelineFile parse(String toml) {

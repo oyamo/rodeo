@@ -35,7 +35,7 @@ class PlatformTest {
 
     @Test
     void maxParallelStagesDefaultsToTheCpuCount() {
-        ExecProperties props = new ExecProperties(0, false, null, null, null);
+        RodeoProperties props = new RodeoProperties(0, false, new StagesProperties(null, null, null));
 
         assertThat(props.maxParallelStages()).isEqualTo(Runtime.getRuntime().availableProcessors());
     }

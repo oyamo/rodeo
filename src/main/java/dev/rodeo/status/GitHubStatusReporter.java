@@ -1,6 +1,6 @@
 package dev.rodeo.status;
 
-import dev.rodeo.config.StatusProperties;
+import dev.rodeo.config.GitHubProperties;
 import dev.rodeo.model.Provider;
 import dev.rodeo.model.PushEvent;
 import java.io.IOException;
@@ -30,18 +30,18 @@ public class GitHubStatusReporter implements StatusReporter {
             .connectTimeout(Duration.ofSeconds(10))
             .build();
 
-    public GitHubStatusReporter(StatusProperties properties, ObjectMapper objectMapper) {
-        this.token = properties.githubToken();
-        this.apiUrl = properties.githubApiUrl().replaceAll("/+$", "");
+    public GitHubStatusReporter(GitHubProperties properties, ObjectMapper objectMapper) {
+        this.token = properties.token();
+        this.apiUrl = properties.apiUrl().replaceAll("/+$", "");
         this.objectMapper = objectMapper;
-        if (token.isEmpty()) {
-            log.info("GitHub commit statuses are disabled; set rodeo.status.github-token to enable them");
+        if (token == null) {
+            log.info("GitHub commit statuses are disabled; set github.token to enable them");
         }
     }
 
     @Override
     public void report(PushEvent event, String context, CommitState state, String description) {
-        if (token.isEmpty() || event.provider() != Provider.GITHUB) {
+        if (token == null || event.provider() != Provider.GITHUB) {
             return;
         }
 

@@ -3,7 +3,8 @@ package dev.rodeo.pipeline;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-import dev.rodeo.config.ExecProperties;
+import dev.rodeo.config.RodeoProperties;
+import dev.rodeo.config.StagesProperties;
 import dev.rodeo.config.SecretsProperties;
 import java.time.Duration;
 import java.util.List;
@@ -12,7 +13,7 @@ import org.junit.jupiter.api.Test;
 
 class PipelineParserTest {
 
-    private final PipelineParser parser = new PipelineParser(new ExecProperties(4, true, "1", "1g", null), new SecretsProperties(Map.of("DEPLOY_TOKEN", "test-token")));
+    private final PipelineParser parser = new PipelineParser(new RodeoProperties(4, true, new StagesProperties(null, "1", "1g")), new SecretsProperties(Map.of("DEPLOY_TOKEN", "test-token")));
 
     @Test
     void parsesPipelinesAndDefaultsToSequentialStages() {

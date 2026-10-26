@@ -4,7 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-import dev.rodeo.config.GitLabWebhookProperties;
+import dev.rodeo.config.GitLabProperties;
 import dev.rodeo.model.Provider;
 import dev.rodeo.model.PushEvent;
 import dev.rodeo.security.GitLabTokenVerifier;
@@ -51,7 +51,7 @@ class GitLabWebhookControllerTest {
     private final List<PushEvent> receivedPushes = new ArrayList<>();
     private final MockMvc mockMvc = MockMvcBuilders
             .standaloneSetup(new GitLabWebhookController(new GitLabWebhookService(
-                    new GitLabTokenVerifier(new GitLabWebhookProperties(TOKEN)),
+                    new GitLabTokenVerifier(new GitLabProperties(TOKEN, null, null)),
                     JsonMapper.builder().build(),
                     List.of(receivedPushes::add))))
             .build();
@@ -94,7 +94,7 @@ class GitLabWebhookControllerTest {
 
     @Test
     void verifierAcceptsOnlyExactToken() {
-        GitLabTokenVerifier verifier = new GitLabTokenVerifier(new GitLabWebhookProperties(TOKEN));
+        GitLabTokenVerifier verifier = new GitLabTokenVerifier(new GitLabProperties(TOKEN, null, null));
 
         assertThat(verifier.isValid(TOKEN)).isTrue();
         assertThat(verifier.isValid(TOKEN + "x")).isFalse();

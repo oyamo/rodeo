@@ -3,15 +3,16 @@ package dev.rodeo.pipeline;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-import dev.rodeo.config.ExecProperties;
+import dev.rodeo.config.RodeoProperties;
+import dev.rodeo.config.StagesProperties;
 import dev.rodeo.config.SecretsProperties;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
 
 class ImageResolutionTest {
 
-    private final PipelineParser withHost = new PipelineParser(new ExecProperties(4, true, "1", "1g", null), new SecretsProperties(Map.of("DEPLOY_TOKEN", "test-token")));
-    private final PipelineParser withoutHost = new PipelineParser(new ExecProperties(4, false, "1", "1g", null), new SecretsProperties(Map.of("DEPLOY_TOKEN", "test-token")));
+    private final PipelineParser withHost = new PipelineParser(new RodeoProperties(4, true, new StagesProperties(null, "1", "1g")), new SecretsProperties(Map.of("DEPLOY_TOKEN", "test-token")));
+    private final PipelineParser withoutHost = new PipelineParser(new RodeoProperties(4, false, new StagesProperties(null, "1", "1g")), new SecretsProperties(Map.of("DEPLOY_TOKEN", "test-token")));
 
     @Test
     void topLevelImageIsInheritedByEveryPipeline() {

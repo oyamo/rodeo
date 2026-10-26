@@ -89,7 +89,7 @@ Connect each repository to the matching endpoint. The payload URL is `https://<y
 1. Open the repository, then go to **Settings → Webhooks → Add webhook**.
 2. **Payload URL:** `https://<your-host>/webhooks/github`
 3. **Content type:** `application/json`
-4. **Secret:** the value of `secret` under `[github.webhook]` in the configuration file
+4. **Secret:** the value of `webhook-secret` under `[github]` in the configuration file
 5. **Which events:** **Just the push event**
 6. Save.
 
@@ -99,7 +99,7 @@ To connect every repository in an organization, add the webhook at the organizat
 
 1. Open the project, then go to **Settings → Webhooks → Add new webhook**.
 2. **URL:** `https://<your-host>/webhooks/gitlab`
-3. **Secret token:** the value of `secret` under `[gitlab.webhook]` in the configuration file
+3. **Secret token:** the value of `webhook-secret` under `[gitlab]` in the configuration file
 4. **Trigger:** **Push events**
 5. Save, then select **Test → Push events** to send a test delivery.
 

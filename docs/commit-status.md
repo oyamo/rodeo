@@ -31,17 +31,17 @@ Pushes to a branch that no pipeline triggers, and repositories without a `rodeo.
 1. Create a fine-grained personal access token at **GitHub → Settings → Developer settings → Personal access tokens → Fine-grained tokens**.
 2. Under **Repository access**, select the repositories rodeo should report on.
 3. Under **Permissions**, set **Commit statuses** to **Read and write**.
-4. Set the token as `github-token` under `[rodeo.status]` in the server's configuration file, and restart rodeo.
+4. Set the token as `token` under `[github]` in the server's configuration file, and restart rodeo.
 
 ```text
-[rodeo.status]
-github-token = "github_pat_..."
+[github]
+token = "github_pat_..."
 ```
 
 Without the token, rodeo runs as before and posts nothing. The startup log says so:
 
 ```text
-GitHub commit statuses are disabled; set rodeo.status.github-token to enable them
+GitHub commit statuses are disabled; set github.token to enable them
 ```
 
 ## Requiring a check before merge
@@ -70,4 +70,4 @@ A status that could not be delivered is not sent again later.
 - **GitHub only.** GitLab commit statuses are not reported yet.
 - **No link to logs.** The status does not link to the run log, because rodeo does not publish logs.
 - **Crash leaves pending.** If rodeo stops during a run, pipelines that were already marked pending stay pending. Push the commit again, or set the status by hand.
-- **Personal token.** The token is tied to the account that created it. If that account leaves the project, create a new token and update `github-token`.
+- **Personal token.** The token is tied to the account that created it. If that account leaves the project, create a new token and update `token`.

@@ -1,8 +1,9 @@
-[github.webhook]
-secret = "replace-with-a-long-random-string"
+[github]
+webhook-secret = "replace-with-a-long-random-string"
 
-[gitlab.webhook]
-secret = "replace-with-another-long-random-string"
+[gitlab]
+webhook-secret = "replace-with-another-long-random-string"
 
-[rodeo.exec]
+[rodeo]
+port = 8080
 allow-host-execution = false

@@ -52,7 +52,7 @@ Valid only inside a stage table. An unknown option is an error. See [Validation]
 | `env_file` | string | none | Repository file of `KEY=VALUE` lines loaded into the stage. See [Environment file](execution.md#environment-file-env_file). |
 | `image` | string | the pipeline or top-level `image` | Container image the stage runs in. Overrides the defaults. See [Images](execution.md#images). |
 | `network` | boolean | `false` | Allows the container network. Needs an image. See [Network access](execution.md#network-access). |
-| `host` | boolean | `false` | Runs the stage on the server, even when the pipeline or top level sets an image. Needs `allow-host-execution = true` under `[rodeo.exec]`. Cannot be combined with `image`. See [Running on the server](execution.md#running-on-the-server). |
+| `host` | boolean | `false` | Runs the stage on the server, even when the pipeline or top level sets an image. Needs `allow-host-execution = true` under `[rodeo]`. Cannot be combined with `image`. See [Running on the server](execution.md#running-on-the-server). |
 
 ## Stage IDs
 
@@ -103,8 +103,8 @@ Later rows take precedence over earlier ones when names collide.
 | `[rodeo.secrets]` | Which names stages may request in `secrets` |
 | `max-parallel-stages` | How many stages run at once. Defaults to the number of CPUs. |
 | `allow-host-execution` | Whether stages with no image may run on the server. Default `false`. |
-| `stage-cpus` | CPU limit for each container. Default `1`. |
-| `stage-memory` | Memory limit for each container. Default `1g`. |
+| `cpus` under `[rodeo.stages]` | CPU limit for each container. Default `1`. |
+| `memory` under `[rodeo.stages]` | Memory limit for each container. Default `1g`. |
 
 See [Configuration](../configuration.md).
 

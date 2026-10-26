@@ -1,6 +1,6 @@
 package dev.rodeo.pipeline;
 
-import dev.rodeo.config.ExecProperties;
+import dev.rodeo.config.RodeoProperties;
 import dev.rodeo.config.Platform;
 import java.io.IOException;
 import java.nio.file.Files;
@@ -27,9 +27,9 @@ public class ContainerRunner {
     private static final Duration KILL_TIMEOUT = Duration.ofSeconds(30);
 
     private final CommandRunner commandRunner;
-    private final ExecProperties properties;
+    private final RodeoProperties properties;
 
-    public ContainerRunner(CommandRunner commandRunner, ExecProperties properties) {
+    public ContainerRunner(CommandRunner commandRunner, RodeoProperties properties) {
         this.commandRunner = commandRunner;
         this.properties = properties;
     }
@@ -47,8 +47,8 @@ public class ContainerRunner {
                 containerName,
                 stage.image(),
                 stage.network(),
-                properties.stageCpus(),
-                properties.stageMemory(),
+                properties.stages().cpus(),
+                properties.stages().memory(),
                 workspace,
                 stage.dir(),
                 environment.keySet(),

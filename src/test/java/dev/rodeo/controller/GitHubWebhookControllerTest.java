@@ -4,7 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-import dev.rodeo.config.GitHubWebhookProperties;
+import dev.rodeo.config.GitHubProperties;
 import dev.rodeo.model.PushEvent;
 import dev.rodeo.security.GitHubSignatureVerifier;
 import dev.rodeo.model.Provider;
@@ -54,7 +54,7 @@ class GitHubWebhookControllerTest {
             """;
 
     private final List<PushEvent> receivedPushes = new ArrayList<>();
-    private final GitHubSignatureVerifier verifier = new GitHubSignatureVerifier(new GitHubWebhookProperties(SECRET));
+    private final GitHubSignatureVerifier verifier = new GitHubSignatureVerifier(new GitHubProperties(SECRET, null, null, null));
     private final MockMvc mockMvc = MockMvcBuilders
             .standaloneSetup(new GitHubWebhookController(new GitHubWebhookService(
                     verifier,

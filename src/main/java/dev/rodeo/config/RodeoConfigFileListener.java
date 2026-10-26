@@ -59,6 +59,9 @@ public class RodeoConfigFileListener implements ApplicationListener<ApplicationE
         }
         Map<String, Object> properties = new LinkedHashMap<>();
         flatten("", result, properties);
+        if (properties.containsKey("rodeo.port")) {
+            properties.put("server.port", properties.remove("rodeo.port"));
+        }
         return properties;
     }
 

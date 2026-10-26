@@ -3,7 +3,7 @@ package dev.rodeo.status;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.sun.net.httpserver.HttpServer;
-import dev.rodeo.config.StatusProperties;
+import dev.rodeo.config.GitHubProperties;
 import dev.rodeo.model.Provider;
 import dev.rodeo.model.PushEvent;
 import java.io.IOException;
@@ -54,7 +54,7 @@ class GitHubStatusReporterTest {
     @Test
     void postsStateToTheCommitWithTheToken() {
         GitHubStatusReporter reporter = new GitHubStatusReporter(
-                new StatusProperties("token-123", apiUrl), JsonMapper.builder().build());
+                new GitHubProperties(null, "token-123", apiUrl, null), JsonMapper.builder().build());
 
         reporter.report(githubPush(), "rodeo/app", CommitState.SUCCESS, "All stages succeeded");
 
@@ -74,7 +74,7 @@ class GitHubStatusReporterTest {
         responses.add(500);
         responses.add(503);
         GitHubStatusReporter reporter = new GitHubStatusReporter(
-                new StatusProperties("token-123", apiUrl), JsonMapper.builder().build());
+                new GitHubProperties(null, "token-123", apiUrl, null), JsonMapper.builder().build());
 
         reporter.report(githubPush(), "rodeo/app", CommitState.FAILURE, "Failed: Deploy");
 
@@ -85,7 +85,7 @@ class GitHubStatusReporterTest {
     void doesNotRetryClientErrors() {
         responses.add(422);
         GitHubStatusReporter reporter = new GitHubStatusReporter(
-                new StatusProperties("token-123", apiUrl), JsonMapper.builder().build());
+                new GitHubProperties(null, "token-123", apiUrl, null), JsonMapper.builder().build());
 
         reporter.report(githubPush(), "rodeo/app", CommitState.PENDING, "Run started");
 
@@ -95,7 +95,7 @@ class GitHubStatusReporterTest {
     @Test
     void doesNothingWithoutAToken() {
         GitHubStatusReporter reporter = new GitHubStatusReporter(
-                new StatusProperties("", apiUrl), JsonMapper.builder().build());
+                new GitHubProperties(null, "", apiUrl, null), JsonMapper.builder().build());
 
         reporter.report(githubPush(), "rodeo/app", CommitState.SUCCESS, "done");
 
@@ -105,7 +105,7 @@ class GitHubStatusReporterTest {
     @Test
     void ignoresPushesFromOtherProviders() {
         GitHubStatusReporter reporter = new GitHubStatusReporter(
-                new StatusProperties("token-123", apiUrl), JsonMapper.builder().build());
+                new GitHubProperties(null, "token-123", apiUrl, null), JsonMapper.builder().build());
         PushEvent gitlab = new PushEvent(
                 Provider.GITLAB, "group/project", "https://gitlab.com/group/project.git",
                 "main", "abc1234", "octocat", 1);
@@ -118,7 +118,7 @@ class GitHubStatusReporterTest {
     @Test
     void truncatesLongDescriptions() {
         GitHubStatusReporter reporter = new GitHubStatusReporter(
-                new StatusProperties("token-123", apiUrl), JsonMapper.builder().build());
+                new GitHubProperties(null, "token-123", apiUrl, null), JsonMapper.builder().build());
 
         reporter.report(githubPush(), "rodeo/app", CommitState.FAILURE, "x".repeat(300));
 

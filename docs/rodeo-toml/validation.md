@@ -259,7 +259,7 @@ A stage has no image, and the server does not allow stages to run on the host.
 
 **Cause:** the file has no `image` at the top level, in its pipeline, or in the stage. This is the safe default.
 
-**Fix:** add an image. For example, `image = "alpine:3.20"` at the top level. If the stage really must run on the server, ask the server operator to set `allow-host-execution = true` under `[rodeo.exec]`.
+**Fix:** add an image. For example, `image = "alpine:3.20"` at the top level. If the stage really must run on the server, ask the server operator to set `allow-host-execution = true` under `[rodeo]`.
 
 ### sets both host and image
 

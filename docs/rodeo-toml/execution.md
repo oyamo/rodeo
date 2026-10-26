@@ -29,7 +29,7 @@ image = "node:22"
 build = "npm ci && npm run build"
 ```
 
-`image` is optional. When no image is set in the stage, its pipeline, or the top level, the server's `default-image` is used. If the server sets neither, the stage has nothing to run in, and it is rejected unless host execution is allowed.
+`image` is optional. When no image is set in the stage, its pipeline, or the top level, the server's `default-image` under `[rodeo.stages]` is used. If the server sets neither, the stage has nothing to run in, and it is rejected unless host execution is allowed.
 
 The image must provide `sh`, because commands run as `sh -c`. Every tool a command uses must be installed in the image.
 
@@ -40,7 +40,7 @@ The image must provide `sh`, because commands run as `sh -c`. Every tool a comma
 | Filesystem | Only the run's checkout, mounted at `/work`. Files outside it are not visible. |
 | Working directory | `/work`, or `/work/<dir>` when `dir` is set |
 | Network | None, unless the stage sets `network = true` |
-| CPU and memory | Set by the server: `stage-cpus` and `stage-memory` under `[rodeo.exec]` |
+| CPU and memory | Set by the server: `cpus` and `memory` under `[rodeo.stages]` |
 | Process count | At most 512 |
 | Linux capabilities | All dropped, and privilege escalation is blocked |
 | User | The same user ID as the rodeo service, so files written to `/work` stay owned by it |
@@ -68,7 +68,7 @@ A stage with several commands starts one container per command. State kept in `/
 
 ### Running on the server
 
-A stage with no image runs on the server. This is powerful and is not isolated, so the server operator must allow it with `allow-host-execution = true` under `[rodeo.exec]`. Use it only for work that must touch the server itself, such as restarting a systemd service. See [Configuration](../configuration.md#rodeoexec).
+A stage with no image runs on the server. This is powerful and is not isolated, so the server operator must allow it with `allow-host-execution = true` under `[rodeo]`. Use it only for work that must touch the server itself, such as restarting a systemd service. See [Configuration](../configuration.md#rodeoexec).
 
 A stage in a pipeline that sets an image can still opt out with `host = true`:
 
@@ -176,7 +176,7 @@ Use `on_fail` for cleanup or for undoing partial work. It does not change the st
 
 ## Parallelism
 
-Stages that do not depend on each other run in parallel. The server limits how many run at once with `max-parallel-stages` under `[rodeo.exec]`, which defaults to 4. Runs are processed one at a time, so the limit applies to the stages of the current run. See [Configuration](../configuration.md#rodeoexec).
+Stages that do not depend on each other run in parallel. The server limits how many run at once with `max-parallel-stages` under `[rodeo]`, which defaults to 4. Runs are processed one at a time, so the limit applies to the stages of the current run. See [Configuration](../configuration.md#rodeoexec).
 
 ## Teardown: `teardown`
 

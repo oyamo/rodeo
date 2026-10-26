@@ -11,8 +11,8 @@ import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.test.web.servlet.MockMvc;
 
 @SpringBootTest(properties = {
-        "github.webhook.secret=test-secret",
-        "gitlab.webhook.secret=test-token"
+        "github.webhook-secret=test-secret",
+        "gitlab.webhook-secret=test-token"
 })
 @AutoConfigureMockMvc
 class SecurityConfigTest {

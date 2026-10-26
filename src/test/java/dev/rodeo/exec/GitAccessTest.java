@@ -2,7 +2,7 @@ package dev.rodeo.exec;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import dev.rodeo.config.GitProperties;
+import dev.rodeo.config.GitHubProperties;
 import java.nio.file.Path;
 import java.util.List;
 import org.junit.jupiter.api.Test;
@@ -22,7 +22,7 @@ class GitAccessTest {
 
     @Test
     void keepsHttpsUrlWhenNoSshKeyIsConfigured() {
-        GitProperties properties = GitProperties.none();
+        GitHubProperties properties = new GitHubProperties(null, null, null, null);
 
         assertThat(GitAccess.cloneUrl(properties, "https://github.com/acme/orders.git"))
                 .isEqualTo("https://github.com/acme/orders.git");
@@ -30,7 +30,7 @@ class GitAccessTest {
 
     @Test
     void usesSshUrlAndKeyWhenSshKeyIsConfigured() {
-        GitProperties properties = new GitProperties(null, "/etc/rodeo/deploy_key");
+        GitHubProperties properties = new GitHubProperties(null, null, null, "/etc/rodeo/deploy_key");
 
         assertThat(GitAccess.cloneUrl(properties, "https://github.com/acme/orders.git"))
                 .isEqualTo("git@github.com:acme/orders.git");
@@ -41,7 +41,7 @@ class GitAccessTest {
 
     @Test
     void writesTokenToCredentialStoreWithoutPuttingItInArguments() {
-        GitProperties properties = new GitProperties("ghp_secret123", null);
+        GitHubProperties properties = new GitHubProperties(null, "ghp_secret123", null, null);
         Path file = Path.of("/tmp/rodeo-credentials-1");
 
         assertThat(GitAccess.credentialLine("https://github.com/acme/orders.git", "ghp_secret123"))
@@ -53,6 +53,6 @@ class GitAccessTest {
 
     @Test
     void noOptionsWhenNothingIsConfigured() {
-        assertThat(GitAccess.options(GitProperties.none(), null)).isEmpty();
+        assertThat(GitAccess.options(new GitHubProperties(null, null, null, null), null)).isEmpty();
     }
 }

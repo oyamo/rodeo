@@ -13,26 +13,22 @@ If the argument is missing, rodeo cannot authenticate webhooks and refuses to st
 ## The file
 
 ```toml
-[server]
-port = 8080
-
-[github.webhook]
-secret = "replace-with-a-long-random-string"
-
-[gitlab.webhook]
-secret = "replace-with-another-long-random-string"
-
-[rodeo.status]
-github-token = "github_pat_..."
-github-api-url = "https://api.github.com"
-
-[rodeo.exec]
-allow-host-execution = false
-stage-cpus = "1"
-stage-memory = "1g"
-
-[rodeo.git]
+[github]
+webhook-secret = "replace-with-a-long-random-string"
 token = "github_pat_..."
+api-url = "https://api.github.com"
+
+[gitlab]
+webhook-secret = "replace-with-another-long-random-string"
+token = "glpat-..."
+
+[rodeo]
+port = 8080
+allow-host-execution = false
+
+[rodeo.stages]
+cpus = "1"
+memory = "1g"
 
 [rodeo.secrets]
 DEPLOY_TOKEN = "..."
@@ -41,49 +37,42 @@ REGISTRY_PASSWORD = "..."
 
 ## Reference
 
-### `[server]`
+### `[github]`
+
+| Key | Required | Default | Description |
+|---|---|---|---|
+| `webhook-secret` | yes | none | The secret configured on the GitHub webhook. rodeo uses it to verify the `X-Hub-Signature-256` signature. |
+| `token` | no | none | Token rodeo uses to clone private repositories and to post commit statuses. Without it, only public repositories are cloned and no status is posted. See [Commit status reporting](commit-status.md). |
+| `ssh-key` | no | none | Path to a read-only SSH deploy key on the server, used to clone repositories over SSH. When set, `token` is not used for cloning. |
+| `api-url` | no | `https://api.github.com` | GitHub API base URL, for GitHub Enterprise Server |
+
+The token is read by rodeo itself. Stage commands never receive it.
+
+### `[gitlab]`
+
+| Key | Required | Description |
+|---|---|---|
+| `webhook-secret` | yes | The secret configured on the GitLab webhook. GitLab sends it in `X-Gitlab-Token`. |
+| `token` | no | Token rodeo uses to clone private repositories. Without it, only public repositories are cloned. |
+| `ssh-key` | no | Path to a read-only SSH deploy key on the server, used to clone repositories over SSH. When set, `token` is not used for cloning. |
+
+rodeo does not start unless both webhook secrets are set. Use a different value for each provider, at least 32 random bytes long.
+
+### `[rodeo]`
 
 | Key | Default | Description |
 |---|---|---|
 | `port` | `8080` | Port the HTTP server listens on |
-
-### `[github.webhook]` and `[gitlab.webhook]`
-
-| Key | Required | Description |
-|---|---|---|
-| `secret` | yes | The secret configured on the provider's webhook. GitHub uses it to verify the `X-Hub-Signature-256` signature. GitLab sends it in `X-Gitlab-Token`. Use at least 32 random bytes. |
-
-rodeo does not start unless both secrets are set. Use a different value for each provider.
-
-### `[rodeo.status]`
-
-| Key | Default | Description |
-|---|---|---|
-| `github-token` | none | Token that lets rodeo post commit statuses. Without it, no status is posted. See [Commit status reporting](commit-status.md). |
-| `github-api-url` | `https://api.github.com` | GitHub API base URL, for GitHub Enterprise Server |
-
-The token is read by rodeo itself. Stage commands never receive it.
-
-### `[rodeo.exec]`
-
-| Key | Default | Description |
-|---|---|---|
 | `max-parallel-stages` | number of CPUs | Maximum number of stages that run at the same time within a run |
 | `allow-host-execution` | `false` | Whether stages with no image may run directly on the server. When `false`, such stages are rejected. See [Where a stage runs](rodeo-toml/execution.md#where-a-stage-runs). |
-| `stage-cpus` | `"1"` | CPU limit for each stage container |
-| `stage-memory` | `"1g"` | Memory limit for each stage container, such as `512m` or `2g` |
+
+### `[rodeo.stages]`
+
+| Key | Default | Description |
+|---|---|---|
 | `default-image` | none | Container image used by any stage that does not name one. Set it so pipeline files can omit `image`. |
-
-### `[rodeo.git]`
-
-Lets rodeo clone private repositories. Set one of these two keys, or neither for public repositories only.
-
-| Key | Description |
-|---|---|
-| `token` | A token with read access to the repositories, such as a GitHub fine-grained token or a GitLab token. rodeo clones over HTTPS and sends the token through a credentials file that exists only for the duration of the clone. |
-| `ssh-key` | Path to a read-only SSH deploy key on the server. rodeo clones the repository over SSH, and never sends the key anywhere else. |
-
-When `ssh-key` is set, rodeo uses SSH for every clone, and `token` is not used. Add the matching public key as a deploy key on each repository.
+| `cpus` | `"1"` | CPU limit for each stage container |
+| `memory` | `"1g"` | Memory limit for each stage container, such as `512m` or `2g` |
 
 ### `[rodeo.secrets]`
 

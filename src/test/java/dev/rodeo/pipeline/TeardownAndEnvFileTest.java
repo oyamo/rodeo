@@ -2,7 +2,8 @@ package dev.rodeo.pipeline;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import dev.rodeo.config.ExecProperties;
+import dev.rodeo.config.RodeoProperties;
+import dev.rodeo.config.StagesProperties;
 import dev.rodeo.config.SecretsProperties;
 import dev.rodeo.model.Provider;
 import dev.rodeo.model.PushEvent;
@@ -19,7 +20,7 @@ class TeardownAndEnvFileTest {
     @TempDir
     Path workspace;
 
-    private static final ExecProperties PROPS = new ExecProperties(4, true, "1", "1g", null);
+    private static final RodeoProperties PROPS = new RodeoProperties(4, true, new StagesProperties(null, "1", "1g"));
 
     @Test
     void teardownRunsBeforeTheStageAndItsFailureIsIgnored() throws Exception {

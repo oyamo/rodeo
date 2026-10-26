@@ -1,6 +1,6 @@
 package dev.rodeo.exec;
 
-import dev.rodeo.config.GitProperties;
+import dev.rodeo.config.GitCredentials;
 import java.net.URI;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
@@ -13,8 +13,8 @@ final class GitAccess {
     private GitAccess() {
     }
 
-    static String cloneUrl(GitProperties properties, String httpsUrl) {
-        return properties.sshKey() == null ? httpsUrl : sshUrl(httpsUrl);
+    static String cloneUrl(GitCredentials credentials, String httpsUrl) {
+        return credentials.sshKey() == null ? httpsUrl : sshUrl(httpsUrl);
     }
 
     static String sshUrl(String httpsUrl) {
@@ -28,11 +28,11 @@ final class GitAccess {
         return "https://rodeo:" + URLEncoder.encode(token, StandardCharsets.UTF_8) + "@" + uri.getHost();
     }
 
-    static List<String> options(GitProperties properties, Path credentialsFile) {
+    static List<String> options(GitCredentials credentials, Path credentialsFile) {
         List<String> options = new ArrayList<>();
-        if (properties.sshKey() != null) {
+        if (credentials.sshKey() != null) {
             options.add("-c");
-            options.add("core.sshCommand=ssh -i " + properties.sshKey()
+            options.add("core.sshCommand=ssh -i " + credentials.sshKey()
                     + " -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new");
         } else if (credentialsFile != null) {
             options.add("-c");

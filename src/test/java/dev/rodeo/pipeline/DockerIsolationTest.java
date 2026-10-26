@@ -3,7 +3,8 @@ package dev.rodeo.pipeline;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
-import dev.rodeo.config.ExecProperties;
+import dev.rodeo.config.RodeoProperties;
+import dev.rodeo.config.StagesProperties;
 import dev.rodeo.config.SecretsProperties;
 import dev.rodeo.model.Provider;
 import dev.rodeo.model.PushEvent;
@@ -70,7 +71,7 @@ class DockerIsolationTest {
     }
 
     private static Status execute(Path workspace, StageSpec stage) {
-        ExecProperties props = new ExecProperties(4, false, "1", "1g", null);
+        RodeoProperties props = new RodeoProperties(4, false, new StagesProperties(null, "1", "1g"));
         CommandRunner runner = new CommandRunner();
         StageExecutor executor = new StageExecutor(
                 runner, new ContainerRunner(runner, props), new SecretsProperties(Map.of()));

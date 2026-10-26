@@ -1,6 +1,6 @@
 package dev.rodeo.security;
 
-import dev.rodeo.config.GitLabWebhookProperties;
+import dev.rodeo.config.GitLabProperties;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import org.springframework.stereotype.Component;
@@ -9,8 +9,8 @@ import org.springframework.stereotype.Component;
 public class GitLabTokenVerifier {
     private final byte[] secret;
 
-    public GitLabTokenVerifier(GitLabWebhookProperties properties) {
-        this.secret = SecretBytes.required(properties.secret(), "gitlab.webhook.secret");
+    public GitLabTokenVerifier(GitLabProperties properties) {
+        this.secret = SecretBytes.required(properties.webhookSecret(), "gitlab.webhook-secret");
     }
 
     public boolean isValid(String token) {

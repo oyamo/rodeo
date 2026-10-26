@@ -19,7 +19,7 @@ GitHub or GitLab ──webhook──▶ rodeo
 ## Prerequisites
 
 - rodeo is installed and reachable over HTTPS. See [Install](installation/docker.md) and [Running rodeo](running.md).
-- The repository is readable by rodeo. For a private repository, set `token` or `ssh-key` under `[rodeo.git]`. See [Configuration](configuration.md#rodeogit).
+- The repository is readable by rodeo. For a private repository, set `token` or `ssh-key` under `[github]` or `[gitlab]`. See [Configuration](configuration.md#rodeogit).
 - The server has Java 21 and Maven, and the `rodeo` user can run them.
 - A service named `app` is installed with systemd and runs `/opt/app/app.jar`.
 
@@ -153,7 +153,7 @@ The previous jar is kept for one deploy. A second rollback needs a deploy of an 
 | `git clone` fails | The repository is private, or the branch does not exist. |
 | A stage shows `FAILED` with `exited with` | Read the lines above that stage's `FAILED` line. |
 | `sudo: a password is required` | The sudoers rule is missing or names a different path to `systemctl`. Check `which systemctl`. |
-| A stage shows `FAILED` with `host execution is disabled` | Set `allow-host-execution = true` under `[rodeo.exec]` in `config.toml`. |
+| A stage shows `FAILED` with `host execution is disabled` | Set `allow-host-execution = true` under `[rodeo]` in `config.toml`. |
 
 ## Limits of this setup
 

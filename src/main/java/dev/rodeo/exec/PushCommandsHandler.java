@@ -1,7 +1,10 @@
 package dev.rodeo.exec;
 
-import dev.rodeo.config.GitProperties;
+import dev.rodeo.config.GitCredentials;
+import dev.rodeo.config.GitHubProperties;
+import dev.rodeo.config.GitLabProperties;
 import dev.rodeo.config.Platform;
+import dev.rodeo.model.Provider;
 import dev.rodeo.model.PushEvent;
 import dev.rodeo.pipeline.Elapsed;
 import dev.rodeo.pipeline.PipelineFile;
@@ -48,7 +51,8 @@ public class PushCommandsHandler implements PushEventHandler {
     private final PipelineParser parser;
     private final StageExecutor stageExecutor;
     private final StatusReporter statusReporter;
-    private final GitProperties git;
+    private final GitHubProperties github;
+    private final GitLabProperties gitlab;
 
     public PushCommandsHandler(
             @Qualifier("pushExecutor") ExecutorService executor,
@@ -56,13 +60,15 @@ public class PushCommandsHandler implements PushEventHandler {
             PipelineParser parser,
             StageExecutor stageExecutor,
             StatusReporter statusReporter,
-            GitProperties git) {
+            GitHubProperties github,
+            GitLabProperties gitlab) {
         this.executor = executor;
         this.stagePool = stagePool;
         this.parser = parser;
         this.stageExecutor = stageExecutor;
         this.statusReporter = statusReporter;
-        this.git = git;
+        this.github = github;
+        this.gitlab = gitlab;
     }
 
     @Override
@@ -77,9 +83,10 @@ public class PushCommandsHandler implements PushEventHandler {
     private void runForPush(String runId, PushEvent event) {
         try {
             Path workspace = Files.createTempDirectory("rodeo-");
-            Path credentials = git.token() == null || git.sshKey() != null ? null : writeCredentials(event);
+            GitCredentials git = credentialsFor(event);
+            Path credentials = git.token() == null || git.sshKey() != null ? null : writeCredentials(event, git);
             try {
-                runInWorkspace(runId, event, workspace, credentials);
+                runInWorkspace(runId, event, workspace, credentials, git);
             } finally {
                 FileSystemUtils.deleteRecursively(workspace);
                 if (credentials != null) {
@@ -93,18 +100,22 @@ public class PushCommandsHandler implements PushEventHandler {
         }
     }
 
-    private Path writeCredentials(PushEvent event) throws IOException {
+    private GitCredentials credentialsFor(PushEvent event) {
+        return event.provider() == Provider.GITLAB ? gitlab : github;
+    }
+
+    private Path writeCredentials(PushEvent event, GitCredentials git) throws IOException {
         Path file = Files.createTempFile("rodeo-credentials-", "");
         Files.writeString(file, GitAccess.credentialLine(event.cloneUrl(), git.token()) + "\n");
         return file;
     }
 
-    private void runInWorkspace(String runId, PushEvent event, Path workspace, Path credentials)
+    private void runInWorkspace(String runId, PushEvent event, Path workspace, Path credentials, GitCredentials git)
             throws IOException, InterruptedException {
         Instant started = Instant.now();
         log.info("run {} received {} push to {} on {}", runId, event.provider(), event.repository(), event.branch());
 
-        clone(event, workspace, credentials);
+        clone(event, workspace, credentials, git);
 
         Path configFile = workspace.resolve(CONFIG_FILE);
         if (!Files.exists(configFile)) {
@@ -164,7 +175,8 @@ public class PushCommandsHandler implements PushEventHandler {
         }
     }
 
-    private void clone(PushEvent event, Path workspace, Path credentials) throws IOException, InterruptedException {
+    private void clone(PushEvent event, Path workspace, Path credentials, GitCredentials git)
+            throws IOException, InterruptedException {
         List<String> argv = new ArrayList<>();
         argv.add(Platform.tool("git"));
         argv.addAll(GitAccess.options(git, credentials));

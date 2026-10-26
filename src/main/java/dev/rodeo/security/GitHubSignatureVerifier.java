@@ -1,6 +1,6 @@
 package dev.rodeo.security;
 
-import dev.rodeo.config.GitHubWebhookProperties;
+import dev.rodeo.config.GitHubProperties;
 import java.nio.charset.StandardCharsets;
 import java.security.InvalidKeyException;
 import java.security.MessageDigest;
@@ -17,8 +17,8 @@ public class GitHubSignatureVerifier {
 
     private final byte[] secret;
 
-    public GitHubSignatureVerifier(GitHubWebhookProperties properties) {
-        this.secret = SecretBytes.required(properties.secret(), "github.webhook.secret");
+    public GitHubSignatureVerifier(GitHubProperties properties) {
+        this.secret = SecretBytes.required(properties.webhookSecret(), "github.webhook-secret");
     }
 
     public boolean isValid(byte[] payload, String signatureHeader) {

@@ -12,6 +12,9 @@ import java.time.Duration;
 import java.util.Map;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.HttpStatusCode;
 import org.springframework.stereotype.Component;
 import tools.jackson.databind.ObjectMapper;
 
@@ -19,22 +22,21 @@ import tools.jackson.databind.ObjectMapper;
 public class GitHubStatusReporter implements StatusReporter {
 
     private static final Logger log = LoggerFactory.getLogger(GitHubStatusReporter.class);
+
     private static final int ATTEMPTS = 3;
     private static final Duration RETRY_DELAY = Duration.ofSeconds(2);
     private static final Duration CONNECT_TIMEOUT = Duration.ofSeconds(10);
     private static final int MAX_DESCRIPTION = 140;
     private static final int SHORT_SHA_LENGTH = 7;
-    private static final String TRAILING_SLASHES = "/+$";
     private static final String ELLIPSIS = "…";
+    private static final String TRAILING_SLASHES = "/+$";
+    private static final String API_VERSION_HEADER = "X-GitHub-Api-Version";
     private static final String API_VERSION = "2022-11-28";
+    private static final String ACCEPT_TYPE = "application/vnd.github+json";
     private static final String USER_AGENT = "rodeo";
-    private static final String MEDIA_TYPE = "application/vnd.github+json";
     private static final String JSON = "application/json";
-    private static final String TOKEN_PREFIX = "Bearer ";
-    private static final int HTTP_OK = 200;
-    private static final int HTTP_MULTIPLE_CHOICES = 300;
-    private static final int HTTP_TOO_MANY_REQUESTS = 429;
-    private static final int HTTP_SERVER_ERROR = 500;
+    private static final String BEARER = "Bearer ";
+    private static final String DISABLED_MESSAGE = "GitHub commit statuses are disabled; set github.token to enable them";
 
     private final String token;
     private final String apiUrl;
@@ -46,71 +48,70 @@ public class GitHubStatusReporter implements StatusReporter {
         this.apiUrl = properties.apiUrl().replaceAll(TRAILING_SLASHES, "");
         this.objectMapper = objectMapper;
         if (token == null) {
-            log.info("GitHub commit statuses are disabled; set github.token to enable them");
+            log.info(DISABLED_MESSAGE);
         }
     }
 
     @Override
     public void report(PushEvent event, String context, CommitState state, String description) {
-        if (token == null || event.provider() != Provider.GITHUB) {
+        if (!enabled(event)) {
             return;
         }
         HttpRequest request = request(event, context, state, description);
-        for (int attempt = 1; attempt <= ATTEMPTS; attempt++) {
-            if (send(request)) {
-                log.info("status {} {} set on {} for {}", context, state.value(), shortSha(event), event.repository());
-                return;
-            }
-            if (attempt < ATTEMPTS && !pause(context, attempt)) {
-                return;
+        switch (deliver(request, context)) {
+            case DELIVERED -> log.info("status {} {} set on {} for {}",
+                    context, state.value(), shortSha(event), event.repository());
+            case RETRYABLE -> log.error("status {} could not be set on {} after {} attempts",
+                    context, shortSha(event), ATTEMPTS);
+            case REJECTED, STOPPED -> {
             }
         }
-        log.error("status {} could not be set on {} after {} attempts", context, shortSha(event), ATTEMPTS);
     }
 
-    private HttpRequest request(PushEvent event, String context, CommitState state, String description) {
-        String body = objectMapper.writeValueAsString(Map.of(
-                "state", state.value(),
-                "context", context,
-                "description", truncate(description)));
-        return HttpRequest.newBuilder(URI.create(apiUrl + "/repos/" + event.repository() + "/statuses/" + event.after()))
-                .header("Authorization", TOKEN_PREFIX + token)
-                .header("Accept", MEDIA_TYPE)
-                .header("X-GitHub-Api-Version", API_VERSION)
-                .header("User-Agent", USER_AGENT)
-                .header("Content-Type", JSON)
-                .POST(HttpRequest.BodyPublishers.ofString(body))
-                .build();
+    private boolean enabled(PushEvent event) {
+        return token != null && event.provider() == Provider.GITHUB;
     }
 
-    /** Returns true when the update is finished, whether it succeeded or was rejected for good. */
-    private boolean send(HttpRequest request) {
+    private Delivery deliver(HttpRequest request, String context) {
+        for (int attempt = 1; attempt < ATTEMPTS; attempt++) {
+            Delivery delivery = send(request);
+            if (delivery != Delivery.RETRYABLE) {
+                return delivery;
+            }
+            log.warn("status {} attempt {} of {} failed; retrying", context, attempt, ATTEMPTS);
+            if (!pause()) {
+                return Delivery.STOPPED;
+            }
+        }
+        return send(request);
+    }
+
+    private Delivery send(HttpRequest request) {
         try {
-            int code = httpClient.send(request, HttpResponse.BodyHandlers.ofString()).statusCode();
-            if (code >= HTTP_OK && code < HTTP_MULTIPLE_CHOICES) {
-                return true;
-            }
-            if (isRetryable(code)) {
-                log.warn("GitHub returned HTTP {} for a status update", code);
-                return false;
-            }
-            log.error("GitHub rejected a status update with HTTP {}", code);
-            return true;
+            return classify(httpClient.send(request, HttpResponse.BodyHandlers.ofString()).statusCode());
         } catch (IOException e) {
             log.warn("status update could not reach GitHub: {}", e.getMessage());
-            return false;
+            return Delivery.RETRYABLE;
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
-            return true;
+            return Delivery.STOPPED;
         }
     }
 
-    private static boolean isRetryable(int code) {
-        return code >= HTTP_SERVER_ERROR || code == HTTP_TOO_MANY_REQUESTS;
+    private static Delivery classify(int code) {
+        HttpStatusCode status = HttpStatusCode.valueOf(code);
+        if (status.is2xxSuccessful()) {
+            return Delivery.DELIVERED;
+        }
+        if (status.is5xxServerError() || status.isSameCodeAs(HttpStatus.TOO_MANY_REQUESTS)) {
+            log.warn("GitHub returned HTTP {} for a status update", code);
+            return Delivery.RETRYABLE;
+        }
+        log.error("GitHub rejected a status update with HTTP {}", code);
+        return Delivery.REJECTED;
     }
 
-    private static boolean pause(String context, int attempt) {
-        log.warn("status {} attempt {} of {} failed; retrying", context, attempt, ATTEMPTS);
+    private static boolean pause() {
         try {
             Thread.sleep(RETRY_DELAY.toMillis());
             return true;
@@ -118,6 +119,28 @@ public class GitHubStatusReporter implements StatusReporter {
             Thread.currentThread().interrupt();
             return false;
         }
+    }
+
+    private HttpRequest request(PushEvent event, String context, CommitState state, String description) {
+        return HttpRequest.newBuilder(URI.create(endpoint(event)))
+                .header(HttpHeaders.AUTHORIZATION, BEARER + token)
+                .header(HttpHeaders.ACCEPT, ACCEPT_TYPE)
+                .header(API_VERSION_HEADER, API_VERSION)
+                .header(HttpHeaders.USER_AGENT, USER_AGENT)
+                .header(HttpHeaders.CONTENT_TYPE, JSON)
+                .POST(HttpRequest.BodyPublishers.ofString(body(context, state, description)))
+                .build();
+    }
+
+    private String endpoint(PushEvent event) {
+        return apiUrl + "/repos/" + event.repository() + "/statuses/" + event.after();
+    }
+
+    private String body(String context, CommitState state, String description) {
+        return objectMapper.writeValueAsString(Map.of(
+                "state", state.value(),
+                "context", context,
+                "description", truncate(description)));
     }
 
     private static String truncate(String description) {
@@ -130,5 +153,13 @@ public class GitHubStatusReporter implements StatusReporter {
     private static String shortSha(PushEvent event) {
         String sha = event.after();
         return sha.substring(0, Math.min(sha.length(), SHORT_SHA_LENGTH));
+    }
+
+    /** The result of one attempt, or of the whole delivery when it is the last. */
+    private enum Delivery {
+        DELIVERED,
+        RETRYABLE,
+        REJECTED,
+        STOPPED
     }
 }

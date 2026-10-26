@@ -1,6 +1,6 @@
 # Install with Docker
 
-Each push to `main` publishes an image to GitHub Container Registry. You can run it without building anything.
+rodeo is available as a container image on GitHub Container Registry. Pull it and run it; nothing needs to be built.
 
 ## Pull the image
 
@@ -8,7 +8,7 @@ Each push to `main` publishes an image to GitHub Container Registry. You can run
 docker pull ghcr.io/oyamo/rodeo:latest
 ```
 
-Released versions are tagged with their version number, for example `ghcr.io/oyamo/rodeo:1.2.0`. Each commit is also tagged with its SHA.
+`latest` is the newest build. To pin a version, use its tag, for example `ghcr.io/oyamo/rodeo:1.2.0`.
 
 ## Run the image
 
@@ -24,50 +24,32 @@ docker run -d --name rodeo \
 
 See [Configuration](../configuration.md) for the file's contents, and [Running rodeo](../running.md) for the rest of the setup.
 
-## Build your own image
-
-Use this when your stages need tools the published image doesn't have. Build the base image from the repository, then extend it.
-
-### Build the base image
-
-From a checkout of the repository:
+## Check the image
 
 ```bash
-docker build -t rodeo:latest .
+docker run --rm --entrypoint java ghcr.io/oyamo/rodeo:latest -version
+docker run --rm --entrypoint git ghcr.io/oyamo/rodeo:latest --version
 ```
 
-The image is based on Eclipse Temurin 21 and includes Git. It runs as a non-root user named `rodeo`.
-
-## Verify the image
-
-Check the Java runtime:
-
-```bash
-docker run --rm --entrypoint java rodeo:latest -version
-```
-
-Check Git:
-
-```bash
-docker run --rm --entrypoint git rodeo:latest --version
-```
-
-Both commands should print a version.
+Both commands print a version.
 
 ## Add tools for stage commands
 
-The image contains only Git and `sh`. A stage that calls another tool, such as Maven, Node, or Docker, needs that tool in the image. Extend the base image:
+The image contains Java, Git, and `sh`. A stage that calls another tool, such as Maven, Node, or Docker, needs that tool in the image. Build your own image on top of it:
 
 ```dockerfile
-FROM rodeo:latest
+FROM ghcr.io/oyamo/rodeo:latest
 USER root
-RUN apt-get update \
-    && apt-get install -y --no-install-recommends maven \
-    && rm -rf /var/lib/apt/lists/*
+RUN apk add --no-cache maven
 USER rodeo
 ```
 
-Build the extended image under a new tag, and use that tag when you run the container.
+Build the image under your own name, and run it in place of `ghcr.io/oyamo/rodeo:latest`:
+
+```bash
+docker build -t my-rodeo .
+docker run -d --name rodeo -v /etc/rodeo/config.toml:/etc/rodeo/config.toml:ro -p 8080:8080 my-rodeo
+```
 
 ## Next steps
 

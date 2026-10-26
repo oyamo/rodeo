@@ -35,9 +35,11 @@ Install Java 21, Maven, and Git.
 
 ## Build the jar
 
-From the project root:
+Clone the repository and build the jar:
 
 ```bash
+git clone https://github.com/oyamo/rodeo.git
+cd rodeo
 mvn -B package
 ```
 

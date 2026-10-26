@@ -1,125 +1,65 @@
 # Install on Linux and macOS
 
-This page installs rodeo as a service on Linux with systemd, using the installer script. The installer creates the `rodeo` user and directories, installs the jar and launcher, writes the service definition, and starts the service.
+Packages are available for Debian, Ubuntu, Fedora, RHEL, and macOS. Download the one for your system from the [releases page](https://github.com/oyamo/rodeo/releases/latest).
 
-## Prerequisites
+## Before you install
 
-Install Java 21 and Git.
+rodeo needs Java 21 and Git on the machine. The packages don't install them for you.
 
 === "Debian and Ubuntu"
 
     ```bash
     sudo apt-get update
-    sudo apt-get install -y openjdk-21-jdk-headless maven git
+    sudo apt-get install -y openjdk-21-jre-headless git
     ```
 
 === "Fedora and RHEL"
 
     ```bash
-    sudo dnf install -y java-21-openjdk-devel maven git
-    ```
-
-=== "Arch Linux"
-
-    ```bash
-    sudo pacman -S --needed jdk21-openjdk maven git
+    sudo dnf install -y java-21-openjdk-headless git
     ```
 
 === "macOS"
 
     ```bash
-    brew install openjdk@21 maven git
+    brew install openjdk@21 git
     ```
 
-    Java 21 is installed under `$(brew --prefix openjdk@21)`. The installer manages systemd services, so on macOS run rodeo directly instead, as shown in [Run](#run-directly).
-
-## Install from a package
-
-Each release publishes `.deb` and `.rpm` packages. Download the one for your distribution from the release page, then install it:
+## Debian and Ubuntu
 
 ```bash
-sudo apt install ./rodeo_<version>_amd64.deb     # Debian and Ubuntu
-sudo dnf install ./rodeo-<version>.x86_64.rpm    # Fedora and RHEL
+sudo apt install ./rodeo_<version>_amd64.deb
 ```
 
-The package creates the `rodeo` user, installs the systemd service, and starts it. Set the webhook secrets in `/etc/rodeo/config.toml`, then restart the service:
+## Fedora and RHEL
 
 ```bash
-sudo systemctl restart rodeo
+sudo dnf install ./rodeo-<version>.x86_64.rpm
 ```
 
-Removing the package stops the service and keeps `/etc/rodeo`.
+The package creates the `rodeo` user, installs the systemd service, and starts it. The service runs with the example configuration, which has placeholder secrets, so webhooks are rejected until you set real ones.
 
-## Build the jar
+1. Edit `/etc/rodeo/config.toml` and set the webhook secrets. See [Configuration](../configuration.md).
+2. Restart the service:
 
-```bash
-git clone https://github.com/oyamo/rodeo.git
-cd rodeo
-mvn -B package
-```
+    ```bash
+    sudo systemctl restart rodeo
+    ```
 
-## Install
+3. Check that it's running:
 
-From the repository root, run the installer as root:
+    ```bash
+    systemctl status rodeo
+    journalctl -u rodeo -f
+    ```
 
-```bash
-sudo deploy/install.sh install --jar target/rodeo-0.1.0-SNAPSHOT.jar
-```
+To upgrade, install the new package the same way. Your configuration is kept.
 
-The installer:
-
-- creates the `rodeo` system user and `/var/lib/rodeo`
-- copies the jar to `/opt/rodeo` and the launcher beside it
-- creates `/etc/rodeo/config.toml` from the example, if it doesn't exist
-- installs and starts the `rodeo` systemd service
-
-Set the webhook secrets in `/etc/rodeo/config.toml`, then restart the service:
-
-```bash
-sudo systemctl restart rodeo
-```
-
-To install a prepared config file instead of the example, add `--config PATH`.
-
-## Check it
-
-```bash
-sudo deploy/install.sh status
-journalctl -u rodeo -f
-```
-
-## Upgrade
-
-Build the new jar, then:
-
-```bash
-sudo deploy/install.sh upgrade --jar target/rodeo-0.1.0-SNAPSHOT.jar
-```
-
-The configuration and the service user are kept.
-
-## Uninstall
-
-```bash
-sudo deploy/install.sh uninstall
-```
-
-This removes the service and the jar. It keeps `/etc/rodeo` and the `rodeo` user. Add `--purge` to remove them too.
+To remove rodeo, uninstall the package with `sudo apt remove rodeo` or `sudo dnf remove rodeo`. The configuration in `/etc/rodeo` is kept.
 
 ## macOS
 
-Each release publishes a `rodeo-<version>-macos.dmg`. It contains the jar, a launcher, an example configuration, a `launchd` service definition, and a short README.
-
-1. Open the disk image and follow the README inside it.
-2. Install Java 21 and Git first, for example with Homebrew: `brew install openjdk@21 git`.
-
-## Run directly
-
-To run rodeo without systemd, use the launcher with a config file:
-
-```bash
-java -jar target/rodeo-0.1.0-SNAPSHOT.jar --rodeo.config=/path/to/config.toml
-```
+Open `rodeo-<version>-macos.dmg` from the release page. It contains the jar, a launcher, an example configuration, a `launchd` service definition, and a README. Follow the README to copy the files, set the secrets, and start rodeo.
 
 ## Next steps
 

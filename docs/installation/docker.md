@@ -10,8 +10,6 @@ docker pull ghcr.io/oyamo/rodeo:latest
 
 Released versions are tagged with their version number, for example `ghcr.io/oyamo/rodeo:1.2.0`. Each commit is also tagged with its SHA.
 
-The package must be public for anyone to pull it without logging in. Packages published by a workflow start as private. To make it public once, open **GitHub → Packages → rodeo → Package settings → Change visibility → Public**.
-
 ## Run the image
 
 Mount your configuration file where rodeo expects it, and expose the port:
@@ -26,13 +24,13 @@ docker run -d --name rodeo \
 
 See [Configuration](../configuration.md) for the file's contents, and [Running rodeo](../running.md) for the rest of the setup.
 
-## Build from source
+## Build your own image
 
-The rest of this page builds the same image from the repository.
+Use this when your stages need tools the published image doesn't have. Build the base image from the repository, then extend it.
 
-### Build the image
+### Build the base image
 
-From the project root:
+From a checkout of the repository:
 
 ```bash
 docker build -t rodeo:latest .

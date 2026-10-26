@@ -70,4 +70,4 @@ A status that could not be delivered is not sent again later.
 - **GitHub only.** GitLab commit statuses are not reported yet.
 - **No link to logs.** The status does not link to the run log, because rodeo does not publish logs.
 - **Crash leaves pending.** If rodeo stops during a run, pipelines that were already marked pending stay pending. Push the commit again, or set the status by hand.
-- **Personal token.** The token is tied to one account. A GitHub App would avoid that, and is planned.
+- **Personal token.** The token is tied to the account that created it. If that account leaves the project, create a new token and update `github-token`.

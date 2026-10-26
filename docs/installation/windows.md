@@ -1,107 +1,56 @@
 # Install on Windows
 
-This page installs rodeo directly on Windows, with stage commands running in PowerShell. Use it when your deploys run on the Windows machine itself. To run rodeo in a container instead, see [Install with Docker](docker.md).
+This page installs rodeo as a Windows service from the MSI installer on the release page. The installer copies the files, creates the configuration file, and registers the service. Stage commands run in PowerShell.
 
 ## Prerequisites
 
-Install these with winget. Run the commands in PowerShell.
+Install these system-wide, so the service can find them. Run this in an elevated PowerShell window:
 
 ```powershell
-winget install --id EclipseAdoptium.Temurin.21.JDK -e
-winget install --id Apache.Maven -e
-winget install --id Git.Git -e
-winget install --id Microsoft.PowerShell -e
+winget install --id EclipseAdoptium.Temurin.21.JDK -e --scope machine
+winget install --id Git.Git -e --scope machine
 ```
 
-Open a new PowerShell window once the installs finish, then check the versions:
+Open a new elevated window afterwards so the new `PATH` is loaded.
+
+## Install
+
+Download `rodeo-<version>-x64.msi` from the release page and double-click it, or run it from an elevated window:
 
 ```powershell
-java -version
-mvn -version
-git --version
-pwsh -Version
+msiexec /i rodeo-<version>-x64.msi
 ```
 
-## Build the jar
+The installer:
 
-Clone the repository and build the jar:
+- copies rodeo to `C:\Program Files\rodeo`
+- creates `C:\ProgramData\rodeo\config.toml` from the example, if it doesn't exist
+- registers and starts the `rodeo` service, which runs as the local system account
+
+Set the webhook secrets in `C:\ProgramData\rodeo\config.toml`, then restart the service from an elevated window:
 
 ```powershell
-git clone https://github.com/oyamo/rodeo.git
-cd rodeo
-mvn -B package
+Restart-Service rodeo
 ```
 
-The jar is written to `target\rodeo-0.1.0-SNAPSHOT.jar`. Copy it to a fixed location, so the service does not depend on the source tree:
+rodeo detects PowerShell, Git, and the Windows system folder on its own, so the configuration only needs your secrets and your choice of host execution. See [Configuration](../configuration.md).
+
+## Check it
 
 ```powershell
-New-Item -ItemType Directory -Force C:\rodeo | Out-Null
-Copy-Item target\rodeo-0.1.0-SNAPSHOT.jar C:\rodeo\rodeo.jar
+Get-Service rodeo
 ```
 
-## Configure
+## Upgrade
 
-Create `C:\rodeo\config.toml`. rodeo detects the platform, so the file only needs your webhook secrets and the host execution setting:
+Download the new MSI and run it. The installer replaces the files and restarts the service. The configuration is kept.
 
-```toml
-[server]
-port = 8080
+## Uninstall
 
-[github.webhook]
-secret = "replace-with-a-long-random-string"
-
-[gitlab.webhook]
-secret = "replace-with-another-long-random-string"
-
-[rodeo.exec]
-allow-host-execution = true
-```
-
-Stages on Windows run on the host, so `allow-host-execution` is `true`. rodeo finds the shell (PowerShell 7 if it's installed, otherwise Windows PowerShell), Git, the `PATH`, the home directory, and the Windows system folder on its own. See [Configuration](../configuration.md) for every key.
-
-## Run
-
-Start rodeo in a PowerShell window:
+Remove rodeo from **Settings > Apps > Installed apps**, or run:
 
 ```powershell
-java -jar C:\rodeo\rodeo.jar --rodeo.config=C:\rodeo\config.toml
+msiexec /x rodeo-<version>-x64.msi
 ```
 
-Keep the window open while rodeo runs. The log prints one line per run and per stage.
-
-## Run as a service
-
-To keep rodeo running after a restart, register it as a Windows service with [NSSM](https://nssm.cc/):
-
-```powershell
-winget install --id NSSM.NSSM -e
-nssm install rodeo "C:\Program Files\Eclipse Adoptium\jdk-21\bin\java.exe" "-jar C:\rodeo\rodeo.jar --rodeo.config=C:\rodeo\config.toml"
-nssm start rodeo
-```
-
-The service account must be able to read `C:\rodeo\config.toml` and must reach your repositories.
-
-## Write Windows stage commands
-
-Commands run in PowerShell, so they use PowerShell syntax. A command that calls an executable must check its exit code, so that a failure stops the stage:
-
-```toml
-[app]
-build = "dotnet publish -c Release -o C:/apps/app; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }"
-deploy = "Restart-Service app"
-```
-
-## Verify the installation
-
-```powershell
-java -version
-git --version
-pwsh -Command "Write-Output ok"
-```
-
-Each command prints a version, or `ok`.
-
-## Next steps
-
-- [Configuration](../configuration.md): every configuration key
-- [Running rodeo](../running.md): connect repositories and check deliveries
+This removes the service and the program files. It keeps `C:\ProgramData\rodeo`, so your configuration survives a reinstall.

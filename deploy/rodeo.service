@@ -1,0 +1,14 @@
+[Unit]
+Description=rodeo pipeline runner
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+User=rodeo
+Group=rodeo
+WorkingDirectory=/var/lib/rodeo
+ExecStart=/opt/rodeo/rodeo --rodeo.config=/etc/rodeo/config.toml
+Restart=on-failure
+
+[Install]
+WantedBy=multi-user.target

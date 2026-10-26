@@ -1,0 +1,8 @@
+[github.webhook]
+secret = "replace-with-a-long-random-string"
+
+[gitlab.webhook]
+secret = "replace-with-another-long-random-string"
+
+[rodeo.exec]
+allow-host-execution = false

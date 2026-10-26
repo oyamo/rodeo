@@ -1,0 +1,54 @@
+<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs">
+  <Package Name="rodeo"
+           Manufacturer="oyamo"
+           Version="$(var.Version)"
+           UpgradeCode="2F0CB719-02DB-4562-985B-C2808ED21CB2"
+           Scope="perMachine">
+
+    <MajorUpgrade DowngradeErrorMessage="A newer version of rodeo is already installed." />
+    <MediaTemplate EmbedCab="yes" />
+
+    <StandardDirectory Id="ProgramFiles64Folder">
+      <Directory Id="INSTALLFOLDER" Name="rodeo" />
+    </StandardDirectory>
+
+    <Feature Id="Main" Title="rodeo" Level="1">
+      <ComponentGroupRef Id="Application" />
+    </Feature>
+
+    <ComponentGroup Id="Application" Directory="INSTALLFOLDER">
+      <Component Guid="*">
+        <File Source="$(var.Source)\rodeo.jar" KeyPath="yes" />
+      </Component>
+      <Component Guid="*">
+        <File Source="$(var.Source)\nssm.exe" KeyPath="yes" />
+      </Component>
+      <Component Guid="*">
+        <File Source="$(var.Source)\install.ps1" KeyPath="yes" />
+      </Component>
+      <Component Guid="*">
+        <File Source="$(var.Source)\config.example.toml" KeyPath="yes" />
+      </Component>
+    </ComponentGroup>
+
+    <CustomAction Id="InstallService"
+                  Directory="INSTALLFOLDER"
+                  ExeCommand="powershell.exe -NoProfile -ExecutionPolicy Bypass -File install.ps1 install -Jar rodeo.jar"
+                  Execute="deferred"
+                  Impersonate="no"
+                  Return="check" />
+
+    <CustomAction Id="UninstallService"
+                  Directory="INSTALLFOLDER"
+                  ExeCommand="powershell.exe -NoProfile -ExecutionPolicy Bypass -File install.ps1 uninstall"
+                  Execute="deferred"
+                  Impersonate="no"
+                  Return="ignore" />
+
+    <InstallExecuteSequence>
+      <Custom Action="UninstallService" Before="RemoveFiles" Condition="REMOVE=&quot;ALL&quot;" />
+      <Custom Action="InstallService" After="InstallFiles" Condition="NOT REMOVE" />
+    </InstallExecuteSequence>
+
+  </Package>
+</Wix>

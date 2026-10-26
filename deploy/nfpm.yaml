@@ -1,0 +1,27 @@
+name: rodeo
+arch: amd64
+platform: linux
+version: ${VERSION}
+section: devel
+description: rodeo pipeline runner for GitHub and GitLab webhooks
+contents:
+  - src: target/rodeo.jar
+    dst: /opt/rodeo/rodeo.jar
+    file_info:
+      mode: 0644
+  - src: deploy/rodeo
+    dst: /opt/rodeo/rodeo
+    file_info:
+      mode: 0755
+  - src: deploy/config.example.toml
+    dst: /etc/rodeo/config.toml
+    type: config|noreplace
+    file_info:
+      mode: 0640
+  - src: deploy/rodeo.service
+    dst: /lib/systemd/system/rodeo.service
+    file_info:
+      mode: 0644
+scripts:
+  postinstall: deploy/postinstall.sh
+  preremove: deploy/preremove.sh

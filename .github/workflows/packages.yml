@@ -1,0 +1,143 @@
+name: packages
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  packages:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: maven
+
+      - name: Build the jar
+        run: |
+          mvn -B -DskipTests package
+          cp target/rodeo-*.jar target/rodeo.jar
+
+      - name: Set the package version
+        run: |
+          if [ "$GITHUB_REF_TYPE" = "tag" ]; then
+            echo "VERSION=${GITHUB_REF_NAME#v}" >> "$GITHUB_ENV"
+          else
+            echo "VERSION=0.0.0-dev" >> "$GITHUB_ENV"
+          fi
+
+      - name: Build .deb and .rpm packages
+        run: |
+          mkdir -p dist
+          for packager in deb rpm; do
+            docker run --rm -e VERSION -v "$PWD:/work" -w /work goreleaser/nfpm:latest \
+              package --packager "$packager" --config deploy/nfpm.yaml --target dist/
+          done
+          ls -l dist
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: linux-packages
+          path: dist/*
+
+      - name: Attach packages to the release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/*
+
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: maven
+
+      - name: Build the jar
+        shell: bash
+        run: |
+          mvn -B -DskipTests package
+          cp target/rodeo-*.jar target/rodeo.jar
+
+      - name: Set the package version
+        shell: bash
+        run: |
+          if [ "$GITHUB_REF_TYPE" = "tag" ]; then v="${GITHUB_REF_NAME#v}"; else v="0.0.0"; fi
+          echo "VERSION=$v" >> "$GITHUB_ENV"
+
+      - name: Get NSSM
+        run: choco install nssm -y --no-progress
+
+      - name: Stage the installer files
+        run: |
+          New-Item -ItemType Directory -Force -Path stage | Out-Null
+          Copy-Item target\rodeo.jar, deploy\install.ps1, deploy\config.example.toml stage
+          Copy-Item (Get-Command nssm).Source stage\nssm.exe
+
+      - name: Build the MSI with WiX
+        shell: bash
+        run: |
+          dotnet tool install --global wix --version 5.0.2
+          mkdir -p dist
+          wix build -arch x64 -d Version="$VERSION" -d Source="$PWD/stage" \
+            -o "dist/rodeo-$VERSION-x64.msi" deploy/msi/rodeo.wxs
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windows-msi
+          path: dist/*.msi
+
+      - name: Attach the MSI to the release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/*.msi
+
+  macos:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: maven
+
+      - name: Build the jar
+        run: |
+          mvn -B -DskipTests package
+          cp target/rodeo-*.jar target/rodeo.jar
+
+      - name: Set the package version
+        run: |
+          if [ "$GITHUB_REF_TYPE" = "tag" ]; then v="${GITHUB_REF_NAME#v}"; else v="0.0.0"; fi
+          echo "VERSION=$v" >> "$GITHUB_ENV"
+
+      - name: Build the DMG
+        run: |
+          mkdir -p dmg/rodeo dist
+          cp target/rodeo.jar deploy/macos/rodeo deploy/macos/README.txt deploy/macos/com.oyamo.rodeo.plist deploy/config.example.toml dmg/rodeo/
+          hdiutil create -volname "rodeo $VERSION" -srcfolder dmg/rodeo -ov -format UDZO "dist/rodeo-$VERSION-macos.dmg"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: macos-dmg
+          path: dist/*.dmg
+
+      - name: Attach the DMG to the release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/*.dmg

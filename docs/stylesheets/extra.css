@@ -1,4 +1,7 @@
-[data-md-color-scheme="slate"] .md-logo img,
+.md-logo img {
+  filter: invert(1);
+}
+
 [data-md-color-scheme="slate"] .logo-img {
   filter: invert(1);
 }

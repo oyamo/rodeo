@@ -2,10 +2,14 @@
 
 Push-triggered pipeline runner for Git repositories. On a push to a configured branch, rodeo clones the branch and runs the stages declared in the repository's `rodeo.toml`, each in its own container.
 
+
 ![Java](https://img.shields.io/badge/language-Java%2021-orange)
 ![Coverage](https://img.shields.io/badge/coverage-89%25-brightgreen)
 ![Spring Boot](https://img.shields.io/badge/Spring%20Boot-4.0.9-6DB33F)
 [![Docs](https://img.shields.io/badge/docs-oyamo.github.io%2Frodeo-blue)](https://oyamo.github.io/rodeo/)
+
+![Rodeo image](./media/cover-art.png)
+*Rodeo riding art by [baiboor][rf], licensed under [Creative Commons 4.0 Attribution license][cc4-by].*
 
 ## Example
 

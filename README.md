@@ -9,7 +9,7 @@ Push-triggered pipeline runner for Git repositories. On a push to a configured b
 [![Docs](https://img.shields.io/badge/docs-oyamo.github.io%2Frodeo-blue)](https://oyamo.github.io/rodeo/)
 
 ![Rodeo image](./media/cover-art.png)
-*Rodeo riding art by [baiboor][rf], licensed under [Creative Commons 4.0 Attribution license][cc4-by].*
+*Rodeo riding art by [Rodeo Team][https://x.com/oyamo_brian], licensed under [Creative Commons 4.0 Attribution license][https://creativecommons.org/licenses/by/4.0/].*
 
 ## Example
 

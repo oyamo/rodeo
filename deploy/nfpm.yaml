@@ -9,6 +9,8 @@ contents:
     dst: /opt/rodeo/rodeo.jar
     file_info:
       mode: 0644
+  - src: target/runtime
+    dst: /opt/rodeo/runtime
   - src: deploy/rodeo
     dst: /opt/rodeo/rodeo
     file_info:

@@ -1,2 +1,2 @@
 #!/bin/sh
-exec java -jar "$(dirname "$0")/rodeo.jar" "$@"
+exec "$(dirname "$0")/runtime/bin/java" -jar "$(dirname "$0")/rodeo.jar" "$@"

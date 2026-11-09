@@ -1,0 +1,58 @@
+name: Bug report
+description: Create a report to help us improve
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to fill out this bug report!
+  - type: textarea
+    id: describe-bug
+    attributes:
+      label: Describe the bug
+      description: A clear and concise description of what the bug is.
+      placeholder: e.g., Webhook fails to verify valid GitLab signature
+    validations:
+      required: true
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Steps to reproduce
+      description: How do we reproduce the behavior?
+      placeholder: |
+        1. Set up Rodeo with configuration...
+        2. Send payload...
+        3. See error...
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+      description: A clear and concise description of what you expected to happen.
+    validations:
+      required: true
+  - type: textarea
+    id: configuration
+    attributes:
+      label: Relevant Configuration
+      description: Please share your configuration file (redacting any sensitive secrets/tokens).
+      render: toml
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs / Screenshots
+      description: If applicable, add error logs or screenshots to help explain your problem.
+      render: shell
+  - type: dropdown
+    id: environment
+    attributes:
+      label: Environment
+      description: What environment are you running Rodeo in?
+      options:
+        - Docker container
+        - Bare metal (Jar file)
+        - Kubernetes
+        - Other
+    validations:
+      required: true

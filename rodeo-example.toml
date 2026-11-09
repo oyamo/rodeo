@@ -1,0 +1,50 @@
+# rodeo-example.toml
+# Save this file as `rodeo.toml` in the root of your Git repository.
+# Rodeo will run these stages in order or in parallel based on `needs` dependencies.
+
+# Run this pipeline only on push events to these branches.
+on = ["main", "develop"]
+
+# -----------------------------------------------------------------------------
+# Stage definitions
+# Each section is a separate stage in your pipeline.
+# -----------------------------------------------------------------------------
+
+[backend-build]
+# The Docker image to spin up for this stage.
+image = "maven:3.9-eclipse-temurin-21"
+
+# Command or list of commands to run inside the container.
+# Commands are executed sequentially in the project's work directory.
+build = [
+  "mvn -B clean compile",
+  "mvn -B test"
+]
+
+
+[frontend-build]
+image = "node:20-alpine"
+build = [
+  "npm ci",
+  "npm run build"
+]
+
+
+[deploy-staging]
+image = "ubuntu:24.04"
+
+# Dependencies: This stage will only run after 'backend-build' and 'frontend-build' complete successfully.
+needs = ["backend-build", "frontend-build"]
+
+# Run this stage directly on the host instead of inside a Docker container.
+# Note: Requires `rodeo.allow-host-execution = true` in server configuration.
+host = true
+
+# The script/commands to deploy the build.
+run = [
+  "cp -r frontend/dist/. /var/www/staging/",
+  "systemctl restart backend-service"
+]
+
+# Optional commands to clean up or teardown environments if the run succeeds or fails.
+# teardown = "echo 'Cleaning up staging deploy artifacts'"

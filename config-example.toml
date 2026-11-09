@@ -1,0 +1,69 @@
+# config-example.toml
+# Example system configuration for Rodeo pipeline runner.
+# Save this file to e.g., /etc/rodeo/config.toml and modify it for your deployment.
+
+# -----------------------------------------------------------------------------
+# Global Rodeo Settings
+# -----------------------------------------------------------------------------
+[rodeo]
+# Maximum number of stages that can execute in parallel globally.
+# Set to 0 to automatically use the number of available CPU cores.
+max-parallel-stages = 4
+
+# Allow stages with `host = true` to run directly on the host machine.
+# WARNING: Only enable this if you trust all pipelines running on this server.
+allow-host-execution = false
+
+
+# -----------------------------------------------------------------------------
+# Default Configuration for Containerized Stages
+# -----------------------------------------------------------------------------
+[rodeo.stages]
+# Default Docker image to use if a stage in rodeo.toml doesn't specify one.
+default-image = "ubuntu:24.04"
+
+# CPU limit allocated to each containerized stage.
+cpus = "2"
+
+# Memory limit allocated to each containerized stage (e.g., "512m", "2g").
+memory = "1g"
+
+
+# -----------------------------------------------------------------------------
+# Global Pipeline Secrets
+# -----------------------------------------------------------------------------
+# These secrets are injected as environment variables into every running stage.
+[rodeo.secrets.values]
+API_KEY = "example_secret_api_key_value"
+DATABASE_URL = "postgresql://user:password@localhost:5432/db"
+
+
+# -----------------------------------------------------------------------------
+# GitHub Integration Properties
+# -----------------------------------------------------------------------------
+[github]
+# Secret token shared with GitHub for verifying push webhook payloads.
+webhook-secret = "your_github_webhook_shared_secret"
+
+# Personal Access Token (PAT) used to access repositories and update commit build statuses.
+token = "ghp_YourGitHubPersonalAccessToken"
+
+# Optional: custom base API URL (e.g. for GitHub Enterprise). Defaults to https://api.github.com
+# api-url = "https://github.example.com/api/v3"
+
+# Optional: SSH Private Key (PEM format or one-liner encoded) for cloning private repos via SSH.
+# ssh-key = "-----BEGIN OPENSSH PRIVATE KEY-----\n..."
+
+
+# -----------------------------------------------------------------------------
+# GitLab Integration Properties
+# -----------------------------------------------------------------------------
+[gitlab]
+# Secret token shared with GitLab for verifying push webhook payloads.
+webhook-secret = "your_gitlab_webhook_secret_token"
+
+# Personal Access Token used to access GitLab repositories and update statuses.
+token = "glpat-YourGitLabPersonalAccessToken"
+
+# Optional: SSH Private Key for cloning private repos via SSH.
+# ssh-key = "-----BEGIN OPENSSH PRIVATE KEY-----\n..."
